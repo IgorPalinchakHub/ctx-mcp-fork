@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Butschster\ContextGenerator\Application;
 
+use Butschster\ContextGenerator\Application\Bootloader\ComposerClientBootloader;
 use Butschster\ContextGenerator\Application\Bootloader\ConfigLoaderBootloader;
 use Butschster\ContextGenerator\Application\Bootloader\ConfigurationBootloader;
 use Butschster\ContextGenerator\Application\Bootloader\ConsoleBootloader;
@@ -32,7 +33,7 @@ use Butschster\ContextGenerator\Source\Url\UrlSourceBootloader;
 use Spiral\Boot\AbstractKernel;
 use Spiral\Boot\Exception\BootException;
 
-class Kernel extends AbstractKernel
+final class Kernel extends AbstractKernel
 {
     #[\Override]
     protected function defineSystemBootloaders(): array
@@ -51,6 +52,7 @@ class Kernel extends AbstractKernel
             CoreBootloader::class,
             HttpClientBootloader::class,
             GithubClientBootloader::class,
+            ComposerClientBootloader::class,
             ConfigLoaderBootloader::class,
             ModifierBootloader::class,
             ContentRendererBootloader::class,

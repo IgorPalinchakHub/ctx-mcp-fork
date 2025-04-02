@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Butschster\ContextGenerator\Config;
 
+use Butschster\ContextGenerator\Application\FSPath;
 use Butschster\ContextGenerator\Config\Exception\ConfigLoaderException;
 use Butschster\ContextGenerator\Config\Loader\ConfigLoaderFactoryInterface;
 use Butschster\ContextGenerator\Config\Loader\ConfigLoaderInterface;
-use Butschster\ContextGenerator\Directories;
+use Butschster\ContextGenerator\DirectoriesInterface;
 use Psr\Log\LoggerInterface;
-use Spiral\Files\FilesInterface;
 
 /**
  * Service for providing configuration loaders based on different sources
@@ -18,10 +18,8 @@ final readonly class ConfigurationProvider
 {
     public function __construct(
         private ConfigLoaderFactoryInterface $loaderFactory,
-        private FilesInterface $files,
-        private Directories $dirs,
+        private DirectoriesInterface $dirs,
         private ?LoggerInterface $logger = null,
-        private array $parserPlugins = [],
     ) {}
 
     /**
@@ -33,7 +31,6 @@ final readonly class ConfigurationProvider
 
         return $this->loaderFactory->createFromString(
             jsonConfig: $jsonConfig,
-            parserPlugins: $this->parserPlugins,
         );
     }
 
@@ -44,24 +41,18 @@ final readonly class ConfigurationProvider
     {
         $resolvedPath = $this->resolvePath($configPath);
 
-        if (\is_dir($resolvedPath)) {
+        if ($resolvedPath->isDir()) {
             $this->logger?->info('Looking for configuration files in directory', [
                 'directory' => $resolvedPath,
             ]);
 
-            return $this->loaderFactory->create(
-                dirs: $this->dirs->withConfigPath($resolvedPath),
-                parserPlugins: $this->parserPlugins,
-            );
+            return $this->loaderFactory->create((string) $resolvedPath);
         }
         $this->logger?->info('Loading configuration from specific file', [
             'file' => $resolvedPath,
         ]);
 
-        return $this->loaderFactory->createForFile(
-            dirs: $this->dirs->withConfigPath($resolvedPath),
-            parserPlugins: $this->parserPlugins,
-        );
+        return $this->loaderFactory->createForFile((string) $resolvedPath);
     }
 
     /**
@@ -70,41 +61,32 @@ final readonly class ConfigurationProvider
     public function fromDefaultLocation(): ConfigLoaderInterface
     {
         $this->logger?->info('Loading configuration from default location', [
-            'rootPath' => $this->dirs->rootPath,
+            'rootPath' => (string) $this->dirs->getConfigPath(),
         ]);
 
-        return $this->loaderFactory->create(
-            dirs: $this->dirs,
-            parserPlugins: $this->parserPlugins,
-        );
+        return $this->loaderFactory->create((string) $this->dirs->getConfigPath());
     }
 
     /**
      * Resolve a path (absolute or relative to root path)
      */
-    private function resolvePath(string $path): string
+    private function resolvePath(string $path): FSPath
     {
+        $pathObj = FSPath::create($path);
+
         // If it's an absolute path, use it directly
-        if ($this->isAbsolutePath($path)) {
-            $resolvedPath = $path;
+        if ($pathObj->isAbsolute()) {
+            $resolvedPath = $pathObj;
         } else {
             // Otherwise, resolve it relative to the root path
-            $resolvedPath = \rtrim($this->dirs->rootPath, '/') . '/' . $path;
+            $resolvedPath = $this->dirs->getRootPath()->join($path);
         }
 
         // Check if the path exists
-        if (!$this->files->exists($resolvedPath)) {
+        if (!$resolvedPath->exists()) {
             throw new ConfigLoaderException(\sprintf('Path not found: %s', $resolvedPath));
         }
 
         return $resolvedPath;
-    }
-
-    /**
-     * Check if a path is absolute
-     */
-    private function isAbsolutePath(string $path): bool
-    {
-        return \str_starts_with($path, '/');
     }
 }

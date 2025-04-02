@@ -153,7 +153,7 @@ final readonly class AsciiTreeRenderer implements TreeRendererInterface
     {
         $totalSize = 0;
 
-        foreach ($directory as $name => $children) {
+        foreach ($directory as $children) {
             if (\is_array($children)) {
                 $totalSize += $this->calculateDirectorySize($children);
             } else {
@@ -174,10 +174,10 @@ final readonly class AsciiTreeRenderer implements TreeRendererInterface
     {
         $latestTime = 0;
 
-        foreach ($directory as $name => $children) {
+        foreach ($directory as $children) {
             $time = \is_array($children)
                 ? $this->getLatestModificationTime($children)
-                : (\file_exists($children) ? \filemtime($children) : 0);
+                : (\file_exists($children) ? (int) \filemtime($children) : 0);
 
             if ($time > $latestTime) {
                 $latestTime = $time;

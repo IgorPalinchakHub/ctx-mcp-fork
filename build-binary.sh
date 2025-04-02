@@ -6,6 +6,8 @@ docker build -t context-generator .
 
 echo "Extracting build artifacts..."
 CONTAINER_ID=$(docker create context-generator)
+rm -rf ./.output
+mkdir ./.output
 docker cp $CONTAINER_ID:/app/.build/bin/ctx ./.output
 docker rm $CONTAINER_ID
 

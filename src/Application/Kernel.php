@@ -30,6 +30,7 @@ use Butschster\ContextGenerator\Source\Registry\SourceRegistryBootloader;
 use Butschster\ContextGenerator\Source\Text\TextSourceBootloader;
 use Butschster\ContextGenerator\Source\Tree\TreeSourceBootloader;
 use Butschster\ContextGenerator\Source\Url\UrlSourceBootloader;
+use Butschster\ContextGenerator\Source\XdebugTrace\TraceSourceBootloader;
 use Spiral\Boot\AbstractKernel;
 use Spiral\Boot\Exception\BootException;
 
@@ -68,6 +69,7 @@ final class Kernel extends AbstractKernel
             GithubSourceBootloader::class,
             GitDiffSourceBootloader::class,
             TreeSourceBootloader::class,
+            TraceSourceBootloader::class,
 
             // Modifiers
             PhpContentFilterBootloader::class,

@@ -1,6 +1,6 @@
 FROM php:8.3-cli
 
-# Встановлення системних пакетів і PHP-розширень
+# Install system packages and PHP extensions
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -16,13 +16,38 @@ RUN apt-get update && apt-get install -y \
         pdo_mysql \
         mbstring \
         xml \
+        pcntl \
         sockets
 
-# Встановлення Xdebug
-RUN pecl install xdebug && docker-php-ext-enable xdebug
+WORKDIR /app
 
-RUN rm -f /usr/local/etc/php/conf.d/*xdebug*.ini
-# Xdebug конфігурація прямо в Dockerfile
+# Create and set permissions for xdebug_traces directory
+RUN mkdir -p /app/xdebug_traces && chmod -R 777 /app/xdebug_traces
+
+# Install xdebug
+RUN pecl install xdebug-3.3.2
+RUN docker-php-ext-enable xdebug
+
+# Remove any existing xdebug configuration
+RUN rm -f /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+
+# Configure xdebug for automatic function tracing
+#RUN echo "zend_extension=xdebug.so" > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.mode=trace" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.output_dir=/app/xdebug_traces" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.trace_output_name=trace.%c.%p" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.trace_format=1" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.collect_params=4" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.collect_return=1" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.collect_assignments=1" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.max_nesting_level=256" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.var_display_max_depth=10" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.var_display_max_children=256" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.var_display_max_data=1024" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.log=/tmp/xdebug.log" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+#    && echo "xdebug.log_level=7" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+
 RUN echo "zend_extension=xdebug.so" > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
     && echo "xdebug.mode=debug, profile" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
     && echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
@@ -32,24 +57,14 @@ RUN echo "zend_extension=xdebug.so" > /usr/local/etc/php/conf.d/docker-php-ext-x
     && echo "xdebug.output_dir=/app/xdebug_traces" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
     && echo "xdebug.trace_format=1" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
-#COPY xdebug.ini /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
-
-
-# Встановлення Composer
+# Install composer
 COPY --from=composer:2.8.4 /usr/bin/composer /usr/bin/composer
 
-# Робоча директорія
-WORKDIR /app
-RUN mkdir -p /app/xdebug_traces && chmod -R 777 /app/xdebug_traces
-
-# Копіюємо всі файли
+# Copy application files
 COPY . .
 
-# Вирішення git-помилки
+# Fix git permissions error
 RUN git config --global --add safe.directory /app
 
-# Встановлення залежностей
+# Install dependencies
 RUN composer install
-
-# Дефолтна команда
-CMD ["php", "app.php"]

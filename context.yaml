@@ -1,7 +1,7 @@
 $schema: https://raw.githubusercontent.com/context-hub/generator/refs/heads/main/json-schema.json
 
-import:
-  - path: src/*/context.yaml
+#import:
+#  - path: src/*/context.yaml
 
 documents:
   - description: "Context Generator Project Structure"
@@ -41,31 +41,45 @@ documents:
         description: >-
           A hierarchical visualization of the Context Generator project structure, showing
           the main directories and files with explanations of their purpose. This provides
-          a high-level overview of the project organization and helps understand the 
+          a high-level overview of the project organization and helps understand the
           relationships between different components.
-
-  - description: Core Interfaces
-    outputPath: core/interfaces.md
-    sources:
-      - type: file
-        sourcePaths: src
-        filePattern:
-          - '*Interface.php'
-          - 'SourceInterface.php'
-          - 'SourceModifierInterface.php'
-          - 'FilesInterface.php'
-        showTreeView: true
-
-  - description: Config parser
-    outputPath: core/config-parser.md
-    sources:
-      - type: file
-        sourcePaths: src/ConfigLoader
-        filePattern: '*.php'
-        showTreeView: true
-
-  - description: "Changes in the Project"
-    outputPath: "changes.md"
-    sources:
-      - type: git_diff
-        commit: unstaged
+#  -   description: "xdebug Generator call stack"
+#      outputPath: "xdebug-structure.md"
+#      sources:
+#          -   type: xdebug_trace
+#              sourcePaths:
+#                  - src
+#              sourceTracePath: xdebug_traces/cachegrind.out.1.0c4b75
+#              showCharCount: true
+#              showSize: true
+#              dirContext: [ ]
+#              methodContext: true
+#              methodScope: true
+#              classScope: true
+#              description: >-
+#                  A hierarchical visualization the Xdebug trace file, showing the function calls and execution paths
+#  - description: Core Interfaces
+#    outputPath: core/interfaces.md
+#    sources:
+#      - type: file
+#        sourcePaths: src
+#        filePattern:
+#          - '*Interface.php'
+#          - 'SourceInterface.php'
+#          - 'SourceModifierInterface.php'
+#          - 'FilesInterface.php'
+#        showTreeView: true
+#
+#  - description: Config parser
+#    outputPath: core/config-parser.md
+#    sources:
+#      - type: file
+#        sourcePaths: src/ConfigLoader
+#        filePattern: '*.php'
+#        showTreeView: true
+#
+#  - description: "Changes in the Project"
+#    outputPath: "changes.md"
+#    sources:
+#      - type: git_diff
+#        commit: unstaged

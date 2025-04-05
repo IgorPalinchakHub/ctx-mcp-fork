@@ -10,6 +10,7 @@ use Butschster\ContextGenerator\Lib\Content\ContentBuilderFactory;
 use Butschster\ContextGenerator\Lib\Variable\VariableResolver;
 use Butschster\ContextGenerator\Source\Registry\SourceRegistryInterface;
 use Spiral\Boot\Bootloader\Bootloader;
+use \Butschster\ContextGenerator\Source\XdebugTrace\Application\TraceSourceFetcher;
 
 final class TraceSourceBootloader extends Bootloader
 {

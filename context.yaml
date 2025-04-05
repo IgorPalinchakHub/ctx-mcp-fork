@@ -5,12 +5,13 @@ $schema: https://raw.githubusercontent.com/context-hub/generator/refs/heads/main
 
 documents:
   - description: "Context Generator Project Structure"
-    outputPath: "project-structure.md"
+    outputPath: "trace_project-structure.md"
     sources:
       - type: tree
         sourcePaths:
           - src
         showCharCount: true
+        showTreeView: true
         showSize: true
         dirContext:
           "src": "Root directory containing all Context Generator source code."
@@ -38,26 +39,94 @@ documents:
           "src/Lib/Sanitizer": "Content sanitization for removing sensitive information."
           "src/Lib/TreeBuilder": "Tree visualization generation for directory structures."
           "src/Lib/Variable": "Variable substitution system for configuration values."
+        includeFiles: true
         description: >-
           A hierarchical visualization of the Context Generator project structure, showing
           the main directories and files with explanations of their purpose. This provides
           a high-level overview of the project organization and helps understand the
           relationships between different components.
-#  -   description: "xdebug Generator call stack"
-#      outputPath: "xdebug-structure.md"
-#      sources:
-#          -   type: xdebug_trace
-#              sourcePaths:
-#                  - src
-#              sourceTracePath: xdebug_traces/cachegrind.out.1.0c4b75
-#              showCharCount: true
-#              showSize: true
-#              dirContext: [ ]
-#              methodContext: true
-#              methodScope: true
-#              classScope: true
-#              description: >-
-#                  A hierarchical visualization the Xdebug trace file, showing the function calls and execution paths
+
+  - description: "Basic Source Code Example"
+    outputPath: "docs/source-code.md"
+    sources:
+              -   type: file
+                  description: "Source Code"
+                  sourcePaths: src/Source/XdebugTrace
+                  filePattern: "*.php"
+                  notPath: [ "tests", "vendor" ]
+                  modifiers:
+                      - name: php-content-filter
+                        options:
+                            keep_doc_comments: false
+
+  - description: "Method Call Stack Analysis"
+    outputPath: "method-call-stack.md"
+    sources:
+      - type: trace
+        description: >-
+                  A comprehensive method call stack analysis for the TreeSourceFetcher::fetch method.
+                  This analysis generates a hierarchical tree visualization of all method calls,
+                  showing the execution flow and dependencies between different components of the system.
+                  The analysis excludes vendor libraries and framework code to focus on the application logic.
+        sourcePaths:
+          - src
+        options:
+          startFile: "src/Source/Tree/TreeSourceFetcher.php"
+          class: "Butschster\\ContextGenerator\\Source\\Tree\\TreeSourceFetcher"
+          method: "fetch"
+              # Skip options
+
+          skipVendorDir: true
+          skipFrameworks: true
+          skipSingletonMethods: true
+          skipConstructors: false
+          skipInvokeMethods: false
+              # Directories and classes to skip
+          skipDirs:
+            - tests
+            - vendor/symfony
+          skipClasses:
+            - Monolog\\Logger
+            - Symfony\\Component\\Console
+
+                  # Methods to skip
+          skipMethods:
+            - debug
+            - log
+            - getLogger
+
+                  # Patterns for singleton methods
+          singletonMethodPatterns:
+                      - /^getInstance$/
+                      - /^instance$/
+                      - /^get[A-Z][a-zA-Z0-9]*Instance$/
+                      - /^create[A-Z][a-zA-Z0-9]*$/
+
+                  # Analysis depth
+          maxDepth: 20
+
+                  # File filtering
+          filePattern: "*.php"
+          notPath:
+                  - "/vendor/"
+                  - "/tests/"
+          path:
+                  - "src/Source"
+                  - "src/Lib"
+
+                  # Content filtering
+          contains: [ ]
+          notContains: [ ]
+
+              # Rendering format
+          renderFormat: "markdown"
+
+              # Tags for organization
+          tags:
+                  - "code-analysis"
+                  - "method-calls"
+                  - "trace"
+
 #  - description: Core Interfaces
 #    outputPath: core/interfaces.md
 #    sources:

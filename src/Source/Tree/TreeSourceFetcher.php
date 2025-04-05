@@ -57,6 +57,11 @@ final readonly class TreeSourceFetcher implements SourceFetcherInterface
             'hasModifiers' => !empty($source->modifiers),
         ]);
 
+//        $filePath = 'src/Source/Tree/TreeSourceFetcher.php';
+//        $methodName = 'fetch';
+//        $className = 'Butschster\ContextGenerator\Source\Tree\TreeSourceFetcher';
+//        $outputFile = 'call_stack.md';
+
         $this->logger?->debug('Creating content builder');
         $builder = $this->builderFactory
             ->create()

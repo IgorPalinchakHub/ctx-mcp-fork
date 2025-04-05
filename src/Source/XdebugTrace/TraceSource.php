@@ -4,42 +4,130 @@ declare(strict_types=1);
 
 namespace Butschster\ContextGenerator\Source\XdebugTrace;
 
-use Butschster\ContextGenerator\Lib\TreeBuilder\TreeViewConfig;
 use Butschster\ContextGenerator\Source\BaseSource;
 use Butschster\ContextGenerator\Source\Fetcher\FilterableSourceInterface;
 
 /**
- * Tree source for generating hierarchical visualizations of directory structures
+ * Trace source for generating method call stack analysis
+ * Builds a hierarchical visualization of method calls
  */
 final class TraceSource extends BaseSource implements FilterableSourceInterface
 {
     /**
-     * @param string|array<string> $sourcePaths Path(s) to generate tree from
-     * @param string $sourceTracePath Path to the xdebug trace file
+     * Content to include in the output (usually empty as it will be generated)
+     */
+    public readonly string $content;
+
+    /**
+     * Tag to help LLM understand the content type
+     */
+    public readonly string $tag;
+
+    /**
+     * Configuration options for the trace analysis
+     *
+     * @var array<string, mixed>
+     */
+    public readonly array $options;
+
+    /**
+     * @param string|array<string> $sourcePaths Path(s) to analyze for method calls
      * @param string $description Human-readable description
+     * @param string $content Initial content (usually empty as it will be generated)
+     * @param array<string, mixed> $options Configuration options for the trace analysis
      * @param string|array<string> $filePattern Pattern(s) to match files
      * @param array<string> $notPath Patterns to exclude paths
      * @param string|array<string> $path Patterns to include only specific paths
      * @param string|array<string> $contains Patterns to include files containing specific content
      * @param string|array<string> $notContains Patterns to exclude files containing specific content
-     * @param string $renderFormat Output format for the tree (ascii, markdown, json)
-     * @param TreeViewConfig|bool $treeView Tree view configuration
-     * @param array<non-empty-string> $tags
+     * @param string $renderFormat Output format for the trace (markdown, ascii, etc.)
+     * @param string $tag Tag to help LLM understand the content type
+     * @param array<non-empty-string> $tags Metadata tags for categorization
      */
     public function __construct(
         public readonly string|array $sourcePaths,
-        public readonly string $sourceTracePath,
         string $description = '',
-        public readonly string|array $filePattern = '*',
+        string $content = '',
+        array $options = [],
+        public readonly string|array $filePattern = '*.php',
         public readonly array $notPath = [],
         public readonly string|array $path = [],
         public readonly string|array $contains = [],
         public readonly string|array $notContains = [],
-        public readonly string $renderFormat = 'ascii',
-        public readonly TreeViewConfig|bool $treeView = true,
+        public readonly string $renderFormat = 'markdown',
+        string $tag = 'trace',
         array $tags = [],
     ) {
         parent::__construct(description: $description, tags: $tags);
+        $this->content = $content;
+        $this->tag = $tag;
+        $this->options = $this->mergeWithDefaultOptions($options);
+    }
+
+    /**
+     * Get default configuration options
+     *
+     * @return array<string, mixed>
+     */
+    private function mergeWithDefaultOptions(array $options): array
+    {
+        $defaultOptions = [
+            // File and class options
+            'startFile' => null,
+            'class' => null,
+            'method' => 'fetch',
+            'outputFile' => 'call_stack.md',
+
+            // Skip options
+            'skipVendorDir' => true,
+            'skipFrameworks' => true,
+            'skipSingletonMethods' => true,
+            'skipConstructors' => false,
+            'skipInvokeMethods' => false,
+
+            // Patterns
+            'singletonMethodPatterns' => [],
+            'skipDirs' => [],
+            'skipClasses' => [],
+            'skipMethods' => [],
+
+            // Analysis options
+            'maxDepth' => 20,
+        ];
+
+        return array_merge($defaultOptions, $options);
+    }
+
+    /**
+     * Get default configuration options for the trace source
+     *
+     * @return array<string, mixed> Default configuration options
+     */
+    public static function getDefaultOptions(): array
+    {
+        return [
+            // File and class options
+            'startFile' => null,
+            'class' => null,
+            'method' => 'fetch',
+            'outputFile' => 'call_stack.md',
+
+            // Skip options
+            'skipVendorDir' => true,
+            'skipFrameworks' => true,
+            'skipSingletonMethods' => true,
+            'skipConstructors' => false,
+            'skipInvokeMethods' => false,
+
+            // Patterns
+            'singletonMethodPatterns' => [],
+            'skipDirs' => [],
+            'skipClasses' => [],
+            'skipMethods' => [],
+
+            // Analysis options
+            'maxDepth' => 20
+        ];
     }
 
     public function name(): string|array|null
@@ -94,6 +182,11 @@ final class TraceSource extends BaseSource implements FilterableSourceInterface
     {
         $files = [];
 
+        // Include start file if specified
+        if (isset($this->options['startFile']) && \is_file($this->options['startFile'])) {
+            $files[] = $this->options['startFile'];
+        }
+
         foreach ((array) $this->sourcePaths as $path) {
             if (\is_file($path)) {
                 $files[] = $path;
@@ -112,14 +205,14 @@ final class TraceSource extends BaseSource implements FilterableSourceInterface
     public function jsonSerialize(): array
     {
         $result = [
-            'type' => 'tree',
+            'type' => 'trace',
             ...parent::jsonSerialize(),
             'sourcePaths' => $this->sourcePaths,
-            'sourceTracePath' => $this->sourceTracePath,
             'filePattern' => $this->filePattern,
             'notPath' => $this->notPath,
             'renderFormat' => $this->renderFormat,
-            ...$this->treeView->jsonSerialize(),
+            'tag' => $this->tag,
+            'options' => $this->options,
         ];
 
         // Add optional properties only if they're non-empty
@@ -135,8 +228,8 @@ final class TraceSource extends BaseSource implements FilterableSourceInterface
             $result['notContains'] = $this->notContains;
         }
 
-        if (!empty($this->dirContext)) {
-            $result['dirContext'] = $this->dirContext;
+        if (!empty($this->content)) {
+            $result['content'] = $this->content;
         }
 
         return \array_filter($result);

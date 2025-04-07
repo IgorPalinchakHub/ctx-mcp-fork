@@ -13,8 +13,9 @@ use Butschster\ContextGenerator\Config\Exception\ConfigLoaderException;
 use Butschster\ContextGenerator\Config\Loader\ConfigLoaderInterface;
 use Butschster\ContextGenerator\DirectoriesInterface;
 use Butschster\ContextGenerator\McpServer\ServerRunnerInterface;
+use Butschster\ContextGenerator\McpServer\Tool\Command\CommandExecutor;
+use Butschster\ContextGenerator\McpServer\Tool\Command\CommandExecutorInterface;
 use Monolog\Level;
-use Psr\Log\LoggerInterface;
 use Spiral\Console\Attribute\Option;
 use Spiral\Core\Container;
 use Spiral\Core\Scope;
@@ -23,7 +24,7 @@ use Symfony\Component\Console\Command\Command;
 
 #[AsCommand(
     name: 'server',
-    description: 'Start the context generator MCP server',
+    description: 'Start MCP server',
 )]
 final class MCPServerCommand extends BaseCommand
 {
@@ -59,13 +60,16 @@ final class MCPServerCommand extends BaseCommand
             },
         );
 
+        $container->getBinder('root')->bind(
+            HasPrefixLoggerInterface::class,
+            $logger,
+        );
+
         $logger->info('Starting MCP server...');
 
         return $container->runScope(
             bindings: new Scope(
                 bindings: [
-                    LoggerInterface::class => $logger,
-                    HasPrefixLoggerInterface::class => $logger,
                     DirectoriesInterface::class => $dirs,
                 ],
             ),
@@ -103,6 +107,9 @@ final class MCPServerCommand extends BaseCommand
                         name: AppScope::Mcp,
                         bindings: [
                             ConfigLoaderInterface::class => $loader,
+                            CommandExecutorInterface::class => $container->make(CommandExecutor::class, [
+                                'projectRoot' => (string) $dirs->getRootPath(),
+                            ]),
                         ],
                     ),
                     scope: static function (ServerRunnerInterface $factory) use ($app): void {

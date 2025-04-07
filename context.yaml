@@ -1,155 +1,58 @@
-$schema: https://raw.githubusercontent.com/context-hub/generator/refs/heads/main/json-schema.json
+$schema: 'https://raw.githubusercontent.com/context-hub/generator/refs/heads/main/json-schema.json'
 
-#import:
-#  - path: src/*/context.yaml
+import:
+  - path: src/**/context.yaml
+
+variables:
+  name: Context Generator
+
+tools:
+  - id: run-tests
+    description: Run unit tests
+    env:
+      COMPOSER_ALLOW_SUPERUSER: 'true'
+    commands:
+      - cmd: composer
+        args:
+          - test
+
+  - id: code-quality
+    description: Run code quality checks
+    env:
+      COMPOSER_ALLOW_SUPERUSER: 'true'
+    commands:
+      - cmd: composer
+        args:
+          - cs-fix
+      - cmd: composer
+        args:
+          - refactor
+      - cmd: composer
+        args:
+          - psalm
 
 documents:
-  - description: "Context Generator Project Structure"
-    outputPath: "trace_project-structure.md"
+  - description: 'Project structure overview'
+    outputPath: project-structure.md
+    overwrite: true
     sources:
       - type: tree
         sourcePaths:
           - src
         showCharCount: true
-        showTreeView: true
         showSize: true
-        dirContext:
-          "src": "Root directory containing all Context Generator source code."
-          "src/ConfigLoader": "Configuration loading system that reads, parses, and validates config files in JSON, PHP, and YAML formats."
-          "src/Console": "Command-line interface components providing user interaction through commands."
-          "src/Document": "Document definition and compilation system that transforms source content into output files."
-          "src/Fetcher": "Content fetching interfaces and registry for retrieving data from various sources."
-          "src/Lib": "Utility libraries providing supporting functionality for the core components."
-          "src/Modifier": "Content transformation system for filtering, formatting, and sanitizing source content."
-          "src/Source": "Source implementations for various content locations (files, URLs, GitHub, etc.)."
-          "src/Source/Composer": "Composer integration for accessing package dependencies."
-          "src/Source/File": "Local filesystem source implementation."
-          "src/Source/GitDiff": "Git diff source for accessing changes in repositories."
-          "src/Source/Github": "GitHub API integration for remote repository access."
-          "src/Source/Text": "Text source for embedding custom content."
-          "src/Source/Tree": "Directory structure visualization source."
-          "src/Source/Url": "Web URL source for retrieving online content."
-          "src/Lib/Content": "Content building and rendering system for structured document output."
-          "src/Lib/Finder": "File discovery components for locating content across different storage types."
-          "src/Lib/GithubClient": "GitHub API client for repository access."
-          "src/Lib/Html": "HTML processing utilities for web content."
-          "src/Lib/HttpClient": "HTTP client abstraction for web requests."
-          "src/Lib/Logger": "Logging system for operation visibility."
-          "src/Lib/PathFilter": "Path filtering utilities for including/excluding content by pattern."
-          "src/Lib/Sanitizer": "Content sanitization for removing sensitive information."
-          "src/Lib/TreeBuilder": "Tree visualization generation for directory structures."
-          "src/Lib/Variable": "Variable substitution system for configuration values."
-        includeFiles: true
-        description: >-
-          A hierarchical visualization of the Context Generator project structure, showing
-          the main directories and files with explanations of their purpose. This provides
-          a high-level overview of the project organization and helps understand the
-          relationships between different components.
 
-  - description: "Basic Source Code Example"
-    outputPath: "docs/source-code.md"
+  - description: Core Interfaces
+    outputPath: core/interfaces.md
     sources:
-              -   type: file
-                  description: "Source Code"
-                  sourcePaths: src/Source/XdebugTrace
-                  filePattern: "*.php"
-                  notPath: [ "tests", "vendor" ]
-                  modifiers:
-                      - name: php-content-filter
-                        options:
-                            keep_doc_comments: false
+      - type: file
+        sourcePaths: src
+        filePattern:
+          - '*Interface.php'
+        showTreeView: true
 
-
-  - description: "Method Call Stack Analysis"
-    outputPath: "method-call-stack.md"
+  - description: "Changes in the Project"
+    outputPath: "changes.md"
     sources:
-      - type: trace
-        description: >-
-                  A comprehensive method call stack analysis for the TreeSourceFetcher::fetch method.
-                  This analysis generates a hierarchical tree visualization of all method calls,
-                  showing the execution flow and dependencies between different components of the system.
-                  The analysis excludes vendor libraries and framework code to focus on the application logic.
-        sourcePaths:
-          - src
-        options:
-          startFile: "src/Source/Tree/TreeSourceFetcher.php"
-          class: "Butschster\\ContextGenerator\\Source\\Tree\\TreeSourceFetcher"
-          method: "fetch"
-              # Skip options
-
-          skipVendorDir: true
-          skipFrameworks: true
-          skipSingletonMethods: true
-          skipConstructors: false
-          skipInvokeMethods: false
-              # Directories and classes to skip
-          skipDirs:
-            - tests
-            - vendor/symfony
-          skipClasses:
-            - Monolog\\Logger
-            - Symfony\\Component\\Console
-
-                  # Methods to skip
-          skipMethods:
-            - debug
-            - log
-            - getLogger
-
-                  # Patterns for singleton methods
-          singletonMethodPatterns:
-                      - /^getInstance$/
-                      - /^instance$/
-                      - /^get[A-Z][a-zA-Z0-9]*Instance$/
-                      - /^create[A-Z][a-zA-Z0-9]*$/
-
-                  # Analysis depth
-          maxDepth: 20
-
-                  # File filtering
-          filePattern: "*.php"
-          notPath:
-                  - "/vendor/"
-                  - "/tests/"
-          path:
-                  - "src/Source"
-                  - "src/Lib"
-
-                  # Content filtering
-          contains: [ ]
-          notContains: [ ]
-
-              # Rendering format
-          renderFormat: "markdown"
-
-              # Tags for organization
-          tags:
-                  - "code-analysis"
-                  - "method-calls"
-                  - "trace"
-
-#  - description: Core Interfaces
-#    outputPath: core/interfaces.md
-#    sources:
-#      - type: file
-#        sourcePaths: src
-#        filePattern:
-#          - '*Interface.php'
-#          - 'SourceInterface.php'
-#          - 'SourceModifierInterface.php'
-#          - 'FilesInterface.php'
-#        showTreeView: true
-#
-#  - description: Config parser
-#    outputPath: core/config-parser.md
-#    sources:
-#      - type: file
-#        sourcePaths: src/ConfigLoader
-#        filePattern: '*.php'
-#        showTreeView: true
-#
-#  - description: "Changes in the Project"
-#    outputPath: "changes.md"
-#    sources:
-#      - type: git_diff
-#        commit: unstaged
+      - type: git_diff
+        commit: unstaged

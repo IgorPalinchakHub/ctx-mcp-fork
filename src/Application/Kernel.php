@@ -34,7 +34,7 @@ use Butschster\ContextGenerator\Source\XdebugTrace\TraceSourceBootloader;
 use Spiral\Boot\AbstractKernel;
 use Spiral\Boot\Exception\BootException;
 
-final class Kernel extends AbstractKernel
+class Kernel extends AbstractKernel
 {
     #[\Override]
     protected function defineSystemBootloaders(): array

@@ -3,9 +3,9 @@
 .php_cs.cache
 .phpunit.result.cache
 .build
+.output
 composer.lock
 coverage
-docs
 vendor
 node_modules
 .php-cs-fixer.cache

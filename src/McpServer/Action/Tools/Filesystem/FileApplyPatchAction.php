@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Butschster\ContextGenerator\McpServer\Action\Tools\Filesystem;
 
-use Butschster\ContextGenerator\DirectoriesInterface;
+use Butschster\ContextGenerator\Lib\Git\CommandsExecutorInterface;
 use Butschster\ContextGenerator\Lib\Git\Exception\GitCommandException;
-use Butschster\ContextGenerator\Lib\Git\GitCommandsExecutor;
 use Butschster\ContextGenerator\McpServer\Attribute\InputSchema;
 use Butschster\ContextGenerator\McpServer\Attribute\Tool;
 use Butschster\ContextGenerator\McpServer\Routing\Attribute\Post;
@@ -28,14 +27,14 @@ use Psr\Log\LoggerInterface;
 #[InputSchema(
     name: 'patch',
     type: 'string',
-    description: 'Content of the git patch to apply. It must be a valid git diff format.',
+    description: 'Content of the git patch to apply. It must start with "diff --git a/b.txt b/b.txt ...". In other words, it must be a valid git patch format.',
     required: true,
 )]
 final readonly class FileApplyPatchAction
 {
     public function __construct(
         private LoggerInterface $logger,
-        private DirectoriesInterface $dirs,
+        private CommandsExecutorInterface $commandsExecutor,
     ) {}
 
     #[Post(path: '/tools/call/file-apply-patch', name: 'tools.file-apply-patch')]
@@ -47,6 +46,15 @@ final readonly class FileApplyPatchAction
         $parsedBody = $request->getParsedBody();
         $path = $parsedBody['path'] ?? '';
         $patch = $parsedBody['patch'] ?? '';
+
+        // Validate patch format
+        if (!\str_starts_with($patch, 'diff --git a/')) {
+            return new CallToolResult([
+                new TextContent(
+                    text: 'Error: Invalid patch format. The patch must start with "diff --git a/".',
+                ),
+            ], isError: true);
+        }
 
         if (empty($path)) {
             return new CallToolResult([
@@ -65,22 +73,7 @@ final readonly class FileApplyPatchAction
         }
 
         try {
-            $projectRoot = (string) $this->dirs->getRootPath();
-
-            // Initialize the git commands executor
-            $gitExecutor = new GitCommandsExecutor($projectRoot);
-
-            // Check if the directory is a git repository
-            if (!$gitExecutor->isGitRepository()) {
-                return new CallToolResult([
-                    new TextContent(
-                        text: 'Error: The project directory is not a git repository',
-                    ),
-                ], isError: true);
-            }
-
-            // Apply the patch
-            $result = $gitExecutor->applyPatch($path, $patch);
+            $result = $this->commandsExecutor->applyPatch($path, $patch);
 
             return new CallToolResult([
                 new TextContent(

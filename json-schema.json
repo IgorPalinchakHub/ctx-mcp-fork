@@ -18,15 +18,52 @@
       "required": [
         "prompts"
       ]
+    },
+    {
+      "required": [
+        "tools"
+      ]
     }
   ],
   "properties": {
+    "tools": {
+      "type": "array",
+      "description": "List of custom tools to be registered for execution",
+      "items": {
+        "$ref": "#/definitions/tool"
+      }
+    },
     "prompts": {
       "type": "array",
       "description": "List of prompts to be registered",
       "items": {
         "$ref": "#/definitions/prompt"
       }
+    },
+    "variables": {
+      "type": "object",
+      "description": "Custom variables to use throughout the configuration",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "version": "1.0.0",
+          "project_name": "My Project",
+          "environment": "development",
+          "api_token": "xyz-123-abc"
+        }
+      ]
     },
     "import": {
       "type": "array",
@@ -147,6 +184,144 @@
     }
   },
   "definitions": {
+    "inputSchema": {
+      "type": "object",
+      "description": "JSON Schema defining arguments that can be provided to tools or other components",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "object"
+          ],
+          "default": "object",
+          "description": "Schema type"
+        },
+        "properties": {
+          "type": "object",
+          "description": "Properties that define the available arguments",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "array",
+                  "object"
+                ],
+                "description": "Data type of the argument"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable description of the argument"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          }
+        },
+        "required": {
+          "type": "array",
+          "description": "List of arguments that must be provided",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "properties"
+      ]
+    },
+    "tool": {
+      "type": "object",
+      "required": [
+        "id",
+        "description",
+        "commands"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the tool"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the tool"
+        },
+        "schema": {
+          "$ref": "#/definitions/inputSchema",
+          "description": "Schema defining arguments that can be provided to the tool"
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables for command executions",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "commands": {
+          "type": "array",
+          "description": "List of commands to execute",
+          "items": {
+            "$ref": "#/definitions/toolCommand"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "toolCommand": {
+      "type": "object",
+      "required": [
+        "cmd"
+      ],
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "description": "Command to execute"
+        },
+        "args": {
+          "type": "array",
+          "description": "Command arguments, may contain {{argument}} placeholders or conditional arguments",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Argument name or value"
+                  },
+                  "when": {
+                    "type": "string",
+                    "description": "Conditional expression that determines if the argument should be included, typically using {{argument}} syntax"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "workingDir": {
+          "type": "string",
+          "description": "Working directory for command execution (relative to project root), may contain {{argument}} placeholders"
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables for command execution, values may contain {{argument}} placeholders",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "prompt": {
       "type": "object",
       "required": [
@@ -163,30 +338,8 @@
           "description": "Human-readable description of the prompt"
         },
         "schema": {
-          "type": "object",
-          "description": "Defines input parameters for this prompt",
-          "properties": {
-            "properties": {
-              "type": "object",
-              "description": "Property definitions for input parameters",
-              "additionalProperties": {
-                "type": "object",
-                "properties": {
-                  "description": {
-                    "type": "string",
-                    "description": "Description of this parameter"
-                  }
-                }
-              }
-            },
-            "required": {
-              "type": "array",
-              "description": "List of required parameters",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
+          "$ref": "#/definitions/inputSchema",
+          "description": "Defines input parameters for this prompt"
         },
         "messages": {
           "type": "array",

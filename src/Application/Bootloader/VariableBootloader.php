@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Butschster\ContextGenerator\Application\Bootloader;
 
-use Butschster\ContextGenerator\Application\Logger\HasPrefixLoggerInterface;
+use Butschster\ContextGenerator\Config\Parser\VariablesParserPlugin;
 use Butschster\ContextGenerator\DirectoriesInterface;
 use Butschster\ContextGenerator\Lib\Variable\Provider\CompositeVariableProvider;
+use Butschster\ContextGenerator\Lib\Variable\Provider\ConfigVariableProvider;
 use Butschster\ContextGenerator\Lib\Variable\Provider\DotEnvVariableProvider;
 use Butschster\ContextGenerator\Lib\Variable\Provider\PredefinedVariableProvider;
-use Butschster\ContextGenerator\Lib\Variable\VariableReplacementProcessor;
+use Butschster\ContextGenerator\Lib\Variable\Provider\VariableProviderInterface;
 use Butschster\ContextGenerator\Lib\Variable\VariableResolver;
 use Dotenv\Repository\RepositoryBuilder;
 use Spiral\Boot\Bootloader\Bootloader;
@@ -20,9 +21,12 @@ final class VariableBootloader extends Bootloader
     public function defineSingletons(): array
     {
         return [
-            VariableResolver::class => static function (
+            ConfigVariableProvider::class => static fn() => new ConfigVariableProvider(),
+            VariablesParserPlugin::class => VariablesParserPlugin::class,
+
+            VariableProviderInterface::class => static function (
+                ConfigVariableProvider $configVariableProvider,
                 DirectoriesInterface $dirs,
-                HasPrefixLoggerInterface $logger,
             ) {
                 $envFilePath = null;
                 $envFileName = null;
@@ -31,21 +35,30 @@ final class VariableBootloader extends Bootloader
                     $envFilePath = (string) $dirs->getEnvFilePath();
                     $envFileName = $dirs->getEnvFilePath()->name();
                 }
+                return new CompositeVariableProvider(
+                    $configVariableProvider,
 
-                return new VariableResolver(
-                    processor: new VariableReplacementProcessor(
-                        provider: new CompositeVariableProvider(
-                            envProvider: new DotEnvVariableProvider(
-                                repository: RepositoryBuilder::createWithDefaultAdapters()->make(),
-                                rootPath: $envFilePath,
-                                envFileName: $envFileName,
-                            ),
-                            predefinedProvider: new PredefinedVariableProvider(),
-                        ),
-                        logger: $logger->withPrefix('variable-resolver'),
+                    // Environment variables have middle priority
+                    new DotEnvVariableProvider(
+                        repository: RepositoryBuilder::createWithDefaultAdapters()->make(),
+                        rootPath: $envFilePath,
+                        envFileName: $envFileName,
                     ),
+
+                    // Predefined system variables have lowest priority
+                    new PredefinedVariableProvider(),
                 );
             },
+
+            VariableResolver::class => VariableResolver::class,
         ];
+    }
+
+    public function boot(
+        ConfigLoaderBootloader $configLoaderBootloader,
+        VariablesParserPlugin $variablesParserPlugin,
+    ): void {
+        // Register the variables parser plugin with the config loader
+        $configLoaderBootloader->registerParserPlugin($variablesParserPlugin);
     }
 }

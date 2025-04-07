@@ -59,6 +59,7 @@ documents:
                         options:
                             keep_doc_comments: false
 
+
   - description: "Method Call Stack Analysis"
     outputPath: "method-call-stack.md"
     sources:

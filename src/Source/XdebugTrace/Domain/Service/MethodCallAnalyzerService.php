@@ -13,60 +13,100 @@ use PhpParser\NodeFinder;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitorAbstract;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
- * Service for analyzing method calls in PHP files
+ * Enhanced service for analyzing method calls in PHP files
  */
 class MethodCallAnalyzerService
 {
+    /**
+     * Map of methods that have been analyzed
+     *
+     * @var array<string, bool>
+     */
     private array $analyzedMethods = [];
+
+    /**
+     * Cache of method call objects
+     *
+     * @var array<string, MethodCall>
+     */
     private array $methodCallMap = [];
+
+    /**
+     * Map of class names to file paths
+     *
+     * @var array<string, string>
+     */
     private array $classNamespaceMap = [];
+
+    /**
+     * Cache of file contents
+     *
+     * @var array<string, string>
+     */
     private array $fileCache = [];
 
+    /**
+     * Dependency graph for cycle detection
+     */
+    private DependencyGraph $dependencyGraph;
 
+    /**
+     * Constructor
+     */
     public function __construct(
         private TypeRepository $typeRepository,
         private TypeInferenceService $typeInferenceService,
         private SkipRulesService $skipRulesService,
         private PhpParserAdapter $parserAdapter,
-        private ?LoggerInterface $logger = null,
+        private ?LoggerInterface $logger = null
     ) {
+        $this->logger ??= new NullLogger();
+        $this->dependencyGraph = new DependencyGraph();
     }
 
-
+    /**
+     * Analyze a method to discover its call hierarchy
+     *
+     * @param string $className Fully qualified class name
+     * @param string $methodName Method name to analyze
+     * @param string $filePath Path to the file containing the class
+     * @param int $maxDepth Maximum depth to analyze
+     * @return MethodCall|null Root method call or null if analysis failed
+     */
     public function analyzeMethod(
         string $className,
         string $methodName,
         string $filePath,
-        int $maxDepth = 20,
-    ): ?MethodCall
-    {
+        int $maxDepth = 20
+    ): ?MethodCall {
         $entryPoint = "{$className}::{$methodName}";
 
-        $this->logger?->info("Starting analysis of {$entryPoint} in {$filePath}");
+        $this->logger->info("Starting analysis of {$entryPoint} in {$filePath}");
 
         // Skip if this method should be skipped
         if ($this->skipRulesService->shouldSkipClass($className) ||
             $this->skipRulesService->shouldSkipMethod($methodName)) {
-            $this->logger?->info("Skipping {$entryPoint} based on skip rules");
+            $this->logger->info("Skipping {$entryPoint} based on skip rules");
             return null;
         }
 
         // Parse the file
         $ast = $this->parserAdapter->parseFile($filePath);
         if ($ast === null) {
-            $this->logger?->error("Failed to parse file {$filePath}");
+            $this->logger->error("Failed to parse file {$filePath}");
             return null;
         }
 
         // Find the class node
         $classNode = $this->parserAdapter->findClass($ast, $className);
         if (!$classNode) {
-            $this->logger?->error("Class {$className} not found in {$filePath}");
+            $this->logger->error("Class {$className} not found in {$filePath}");
 
             // Try to find the class by short name
-            $classShortName = $this->getShortClassName($className);
+            $classShortName = $this->parserAdapter->getShortClassName($className);
             foreach ($this->parserAdapter->findInstanceOf($ast, Node\Stmt\Class_::class) as $node) {
                 if ($node->name->toString() === $classShortName) {
                     $classNode = $node;
@@ -74,7 +114,7 @@ class MethodCallAnalyzerService
                     // Update the full class name if we found it by short name
                     if ($node->namespacedName) {
                         $className = $node->namespacedName->toString();
-                        $this->logger?->info("Found class by short name: {$className}");
+                        $this->logger->info("Found class by short name: {$className}");
                     }
                     break;
                 }
@@ -95,7 +135,7 @@ class MethodCallAnalyzerService
         }
 
         if ($methodNode === null) {
-            $this->logger?->error("Method {$methodName} not found in {$className}");
+            $this->logger->error("Method {$methodName} not found in {$className}");
             return null;
         }
 
@@ -146,16 +186,24 @@ class MethodCallAnalyzerService
         return $rootCall;
     }
 
-
+    /**
+     * Recursively analyze method calls
+     *
+     * @param MethodCall $methodCall Current method call to analyze
+     * @param string $filePath Path to the file containing the method
+     * @param Node\Stmt\ClassMethod $methodNode AST node for the method
+     * @param int $maxDepth Maximum depth to analyze
+     * @param int $depth Current depth in the call stack
+     * @param array<string> $visited Method signatures already visited (to detect cycles)
+     */
     private function analyzeMethodCalls(
         MethodCall $methodCall,
         string $filePath,
         Node\Stmt\ClassMethod $methodNode,
         int $maxDepth,
         int $depth = 0,
-        array $visited = [],
-    ): void
-    {
+        array $visited = []
+    ): void {
         $entryPoint = $methodCall->getSignature();
 
         // Skip if we've already analyzed this method or reached max depth or detecting recursion
@@ -168,10 +216,13 @@ class MethodCallAnalyzerService
         $this->analyzedMethods[$entryPoint] = true;
         $visited[] = $entryPoint;
 
-        // Find method calls within the method body
-        $calls = $this->extractMethodCalls($methodCall->getClassName(), $methodCall->getMethodName(), $methodNode);
+        // Add the method to the dependency graph
+        $this->dependencyGraph->addNode($entryPoint);
 
-        $this->logger?->debug("Found " . count($calls) . " method calls in {$entryPoint}");
+        // Find method calls within the method body
+        $calls = $this->extractMethodCalls($methodCall->getClassName(), $methodCall->getMethodName(), $methodNode, $filePath);
+
+        $this->logger->debug("Found " . count($calls) . " method calls in {$entryPoint}");
 
         // Process each called method
         foreach ($calls as $calledMethod) {
@@ -181,14 +232,17 @@ class MethodCallAnalyzerService
             // Skip if this method should be skipped
             if ($this->skipRulesService->shouldSkipClass($calledClassName) ||
                 $this->skipRulesService->shouldSkipMethod($calledMethodName)) {
-                $this->logger?->debug("Skipping call to {$callKey} based on skip rules");
+                $this->logger->debug("Skipping call to {$callKey} based on skip rules");
                 continue;
             }
+
+            // Add the dependency to the graph
+            $this->dependencyGraph->addEdge($entryPoint, $callKey);
 
             // Find the file for the called class
             $calledFilePath = $this->findFileForClass($calledClassName);
             if ($calledFilePath === null) {
-                $this->logger?->debug("Could not find file for class {$calledClassName}, skipping");
+                $this->logger->debug("Could not find file for class {$calledClassName}, skipping");
                 continue;
             }
 
@@ -202,7 +256,7 @@ class MethodCallAnalyzerService
                 // Parse the called file
                 $calledAst = $this->parserAdapter->parseFile($calledFilePath);
                 if ($calledAst === null) {
-                    $this->logger?->warning("Could not parse file for class {$calledClassName}: {$calledFilePath}");
+                    $this->logger->warning("Could not parse file for class {$calledClassName}: {$calledFilePath}");
                     continue;
                 }
 
@@ -210,7 +264,7 @@ class MethodCallAnalyzerService
                 $calledClassNode = $this->parserAdapter->findClass($calledAst, $calledClassName);
                 if (!$calledClassNode) {
                     // Try to find by short name
-                    $shortClassName = $this->getShortClassName($calledClassName);
+                    $shortClassName = $this->parserAdapter->getShortClassName($calledClassName);
                     foreach ((new NodeFinder())->findInstanceOf($calledAst, Node\Stmt\Class_::class) as $node) {
                         if ($node->name->toString() === $shortClassName) {
                             $calledClassNode = $node;
@@ -263,13 +317,6 @@ class MethodCallAnalyzerService
                     $returnType,
                     $callContext
                 );
-
-                // Log child method call for debugging
-                $this->logger?->debug("Found child method call: {$calledClassName}::{$calledMethodName}", [
-                    'static' => $calledMethod['isStatic'],
-                    'file' => $calledFilePath,
-                    'hasParameters' => !empty($calledMethod['parameters']),
-                ]);
 
                 // Store in the method call map
                 $this->methodCallMap[$callKey] = $childMethodCall;
@@ -334,9 +381,21 @@ class MethodCallAnalyzerService
         }
     }
 
-
-    private function extractMethodCalls(string $className, string $methodName, Node\Stmt\ClassMethod $methodNode): array
-    {
+    /**
+     * Extract method calls from a method node
+     *
+     * @param string $className Class containing the method
+     * @param string $methodName Name of the method
+     * @param Node\Stmt\ClassMethod $methodNode AST node for the method
+     * @param string $contextFilePath Path to the file containing the method (for resolving aliases)
+     * @return array List of method calls found
+     */
+    private function extractMethodCalls(
+        string $className,
+        string $methodName,
+        Node\Stmt\ClassMethod $methodNode,
+        string $contextFilePath
+    ): array {
         $calls = [];
         $variableTypes = []; // Track variable types in this scope
 
@@ -344,7 +403,7 @@ class MethodCallAnalyzerService
         $variableTypes['this'] = $className;
 
         // Log method analysis
-        $this->logger?->debug("Extracting method calls from {$className}::{$methodName}", [
+        $this->logger->debug("Extracting method calls from {$className}::{$methodName}", [
             'hasStatements' => !empty($methodNode->stmts),
             'stmtCount' => count($methodNode->stmts ?? []),
         ]);
@@ -367,19 +426,32 @@ class MethodCallAnalyzerService
         }
 
         // Create a new visitor that will collect method calls
-        $methodCallVisitor = new class($className, $methodName, $variableTypes, $this->typeInferenceService, $this->parserAdapter) extends NodeVisitorAbstract {
-            /** @var array<array> */
+        $methodCallVisitor = new class(
+            $className,
+            $methodName,
+            $variableTypes,
+            $this->typeInferenceService,
+            $this->parserAdapter,
+            $contextFilePath,
+            $this->logger
+        ) extends NodeVisitorAbstract {
+            /** @var array<array> Method calls collected */
             private array $calls = [];
 
-            /** @var array<string, string> */
+            /** @var array<string, string> Type mapping for variables */
             private array $variableTypes = [];
+
+            /** @var array<string> Properties accessed in the method */
+            private array $accessedProperties = [];
 
             public function __construct(
                 private string $className,
                 private string $methodName,
                 array $initialVariableTypes,
                 private TypeInferenceService $typeInferenceService,
-                private PhpParserAdapter $parserAdapter
+                private PhpParserAdapter $parserAdapter,
+                private string $contextFilePath,
+                private LoggerInterface $logger
             ) {
                 $this->variableTypes = $initialVariableTypes;
             }
@@ -412,7 +484,9 @@ class MethodCallAnalyzerService
                 // If assigning a new object
                 if ($node->expr instanceof Node\Expr\New_ && $node->expr->class instanceof Node\Name) {
                     $className = $node->expr->class->toString();
-                    $this->variableTypes[$varName] = $className;
+                    // Resolve any class aliases
+                    $resolvedClassName = $this->parserAdapter->resolveClassName($className, $this->contextFilePath);
+                    $this->variableTypes[$varName] = $resolvedClassName;
                     return;
                 }
 
@@ -475,12 +549,32 @@ class MethodCallAnalyzerService
 
             private function handleStaticCall(Node\Expr\StaticCall $node): void
             {
-                if (!($node->class instanceof Node\Name) || !($node->name instanceof Node\Identifier)) {
+                if (!($node->name instanceof Node\Identifier)) {
                     return;
                 }
 
-                $className = $node->class->toString();
+                $className = null;
                 $methodName = $node->name->toString();
+
+                // Handle different types of class references
+                if ($node->class instanceof Node\Name) {
+                    $rawClassName = $node->class->toString();
+
+                    // Resolve class name (handling aliases)
+                    $className = $this->parserAdapter->resolveClassName($rawClassName, $this->contextFilePath);
+
+                    // Special cases like parent/self/static
+                    if (in_array($rawClassName, ['self', 'static'])) {
+                        $className = $this->className;
+                    } elseif ($rawClassName === 'parent') {
+                        // We'll keep it as 'parent' since we don't have the parent class info readily available
+                        $className = 'parent';
+                    }
+                }
+
+                if (!$className) {
+                    return;
+                }
 
                 // Format arguments
                 $parameters = $this->formatArguments($node->args);
@@ -506,17 +600,14 @@ class MethodCallAnalyzerService
                     return;
                 }
 
-                $className = $node->class->toString();
+                $rawClassName = $node->class->toString();
+                $className = $this->parserAdapter->resolveClassName($rawClassName, $this->contextFilePath);
 
                 // Format arguments
                 $parameters = $this->formatArguments($node->args);
 
                 // Create call info for constructor
                 $call = [
-                    'signature' => "{$className}::__construct",
-                    'isStatic' => false,
-                    'parameters' => $parameters,
-                    'returnType' => $className,
                     'signature' => "{$className}::__construct",
                     'isStatic' => false,
                     'parameters' => $parameters,
@@ -567,7 +658,8 @@ class MethodCallAnalyzerService
                 }
 
                 if ($expr instanceof Node\Expr\New_ && $expr->class instanceof Node\Name) {
-                    return $expr->class->toString();
+                    $className = $expr->class->toString();
+                    return $this->parserAdapter->resolveClassName($className, $this->contextFilePath);
                 }
 
                 if ($expr instanceof Node\Scalar\String_) {
@@ -641,17 +733,44 @@ class MethodCallAnalyzerService
                     return null;
                 }
 
+                $fluentPrefixes = ['add', 'set', 'with', 'build', 'create'];
+                foreach ($fluentPrefixes as $prefix) {
+                    if (strpos($methodName, $prefix) === 0) {
+                        // In fluent interfaces, methods typically return $this
+                        return $objectType;
+                    }
+                }
+
+
                 return $this->typeInferenceService->inferMethodReturnType($objectType, $methodName);
             }
 
             private function inferStaticCallReturnType(Node\Expr\StaticCall $node): ?string
             {
-                if (!($node->name instanceof Node\Identifier) || !($node->class instanceof Node\Name)) {
+                if (!($node->name instanceof Node\Identifier)) {
                     return null;
                 }
 
-                $className = $node->class->toString();
+                $className = null;
                 $methodName = $node->name->toString();
+
+                if ($node->class instanceof Node\Name) {
+                    $rawClassName = $node->class->toString();
+
+                    // Handle special class references
+                    if (in_array($rawClassName, ['self', 'static'])) {
+                        $className = $this->className;
+                    } elseif ($rawClassName === 'parent') {
+                        $className = 'parent';
+                    } else {
+                        // Resolve the class name including aliases
+                        $className = $this->parserAdapter->resolveClassName($rawClassName, $this->contextFilePath);
+                    }
+                }
+
+                if (!$className) {
+                    return null;
+                }
 
                 return $this->typeInferenceService->inferMethodReturnType($className, $methodName);
             }
@@ -671,10 +790,19 @@ class MethodCallAnalyzerService
             $traverser->traverse($methodNode->stmts);
         }
 
-        return $methodCallVisitor->getCalls();
+        $calls = $methodCallVisitor->getCalls();
+
+        // Log the number of calls found
+        $this->logger->debug("Extracted " . count($calls) . " method calls from {$className}::{$methodName}");
+
+        return $calls;
+
+
     }
 
-
+    /**
+     * Find a file for a class using the PhpParserAdapter
+     */
     private function findFileForClass(string $className): ?string
     {
         // Check if we already know where this class is
@@ -682,91 +810,61 @@ class MethodCallAnalyzerService
             return $this->classNamespaceMap[$className];
         }
 
-        // Try to find the file using common conventions
-        $classPathParts = explode('\\', $className);
-        $shortClassName = array_pop($classPathParts);
-
-        // Common directories to search
-        $directories = ['src', 'lib', 'app', 'vendor'];
-
-        // Try to locate the file
-        foreach ($directories as $dir) {
-            // PSR-4 style namespace mapping
-            $classPath = $dir . '/' . implode('/', $classPathParts) . '/' . $shortClassName . '.php';
-            if (file_exists($classPath)) {
-                $this->registerClassNameForFile($className, $classPath);
-                return $classPath;
-            }
-
-            // Try with lowercase directories (some projects use this convention)
-            $lowerNamespace = strtolower(implode('/', $classPathParts));
-            $classPath = $dir . '/' . $lowerNamespace . '/' . $shortClassName . '.php';
-            if (file_exists($classPath)) {
-                $this->registerClassNameForFile($className, $classPath);
-                return $classPath;
-            }
-        }
-
-        // If not found, try to scan known files for the class
-        foreach ($this->fileCache as $filePath => $content) {
-            $ast = $this->parserAdapter->parseFile($filePath);
-            if ($ast) {
-                $classNode = $this->parserAdapter->findClass($ast, $className);
-                if ($classNode) {
-                    $this->registerClassNameForFile($className, $filePath);
-                    return $filePath;
-                }
-            }
-        }
-
-        // Try using reflection if available
-        try {
-            if (class_exists($className)) {
-                $reflector = new \ReflectionClass($className);
-                $reflectionFile = $reflector->getFileName();
-                if ($reflectionFile) {
-                    $this->registerClassNameForFile($className, $reflectionFile);
-                    return $reflectionFile;
-                }
-            }
-        } catch (\Throwable $e) {
-            // Couldn't resolve class with reflection, continue with other methods
+        // Try to find using adapter
+        $filePath = $this->parserAdapter->findFileForClass($className);
+        if ($filePath) {
+            $this->registerClassNameForFile($className, $filePath);
+            return $filePath;
         }
 
         return null;
     }
 
-
+    /**
+     * Register a class name to file mapping
+     */
     private function registerClassNameForFile(string $className, string $filePath): void
     {
         $this->classNamespaceMap[$className] = $filePath;
     }
 
-
-    private function getShortClassName(string $fullyQualifiedName): string
-    {
-        $parts = explode('\\', $fullyQualifiedName);
-        return end($parts);
-    }
-
-
+    /**
+     * Get the number of methods that have been analyzed
+     */
     public function getAnalyzedMethodsCount(): int
     {
         return count($this->analyzedMethods);
     }
 
-
+    /**
+     * Get the methods that have been analyzed
+     *
+     * @return array<string, bool>
+     */
     public function getAnalyzedMethods(): array
     {
         return $this->analyzedMethods;
     }
 
+    /**
+     * Get detected circular dependencies
+     *
+     * @return array<array<string>> List of circular dependency paths
+     */
+    public function getCircularDependencies(): array
+    {
+        return $this->dependencyGraph->detectCircularDependencies();
+    }
 
+    /**
+     * Clear all caches
+     */
     public function clearCache(): void
     {
         $this->analyzedMethods = [];
         $this->methodCallMap = [];
         $this->classNamespaceMap = [];
         $this->fileCache = [];
+        $this->dependencyGraph = new DependencyGraph();
     }
 }

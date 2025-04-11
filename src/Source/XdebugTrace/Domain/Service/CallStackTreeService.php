@@ -42,7 +42,7 @@ class CallStackTreeService
 
         // Format the node display
         $indent = str_repeat("  ", $depth);
-        $prefix = $depth === 0 ? "" : $indent . "├─ ";
+        $prefix = $depth === 0 ? "- " : $indent . "├─ ";
 
         // Get method information
         $className = $methodCall->getClassName();
@@ -62,14 +62,28 @@ class CallStackTreeService
             $locationInfo = " " . $context->getFormattedFileLocation();
         }
 
+        // For method chains, add a note with the calling context
+        $chainInfo = "";
+        if ($context->hasCallerInfo() && strpos($methodName, 'add') === 0 || strpos($methodName, 'set') === 0 ||
+            $returnType === $className || $returnType === 'self') {
+            // This is likely part of a method chain
+            $chainInfo = " (chain)";
+        }
+
         // Add static marker for static calls
         $staticMarker = $isStatic ? " [STATIC]" : "";
 
-        // Add return type if available
-        $returnTypeInfo = $returnType ? " : {$returnType}" : "";
+        // Add return type if available - normalize self/static to actual class name
+        $returnTypeInfo = "";
+        if ($returnType) {
+            if ($returnType === 'self' || $returnType === 'static') {
+                $returnType = $className;
+            }
+            $returnTypeInfo = " : {$returnType}";
+        }
 
         // Format main method line
-        $content = "{$prefix}{$methodDisplay}{$returnTypeInfo}{$locationInfo}{$staticMarker}\n";
+        $content = "{$prefix}{$methodDisplay}{$returnTypeInfo}{$locationInfo}{$staticMarker}{$chainInfo}\n";
 
         // Add parameter and return info sections
         $parameters = $methodCall->getParameters();
@@ -81,6 +95,7 @@ class CallStackTreeService
                 $content .= $indent . "  │ Parameters:\n";
                 foreach ($parameters as $parameter) {
                     $paramName = $parameter->getName();
+                    $paramType = $parameter->getType() ? ": " . $parameter->getType() : "";
                     $paramValue = $parameter->getValueAsString();
                     $sourceInfo = "";
 
@@ -89,7 +104,7 @@ class CallStackTreeService
                         $sourceInfo = " (from \${$parameter->getSourceVariable()})";
                     }
 
-                    $content .= $indent . "  │  - \${$paramName} = {$paramValue}{$sourceInfo}\n";
+                    $content .= $indent . "  │  - \${$paramName}{$paramType} = {$paramValue}{$sourceInfo}\n";
                 }
             }
 
@@ -113,13 +128,16 @@ class CallStackTreeService
                 $content .= $this->renderMethodCallTree($childCalls[$i], $depth + 1, $visited, $maxDepth);
             }
 
-            // Process the last child with special handling
+            // Process the last child with special formatting
             $lastChildContent = $this->renderMethodCallTree($childCalls[$lastIndex], $depth + 1, $visited, $maxDepth);
 
-            // Replace the initial prefix '├─' with '└─' for the last child
-            $replaceFrom = $indent . "  " . "├─";
-            $replaceTo = $indent . "  " . "└─";
-            $lastChildContent = preg_replace('/^' . preg_quote($replaceFrom, '/') . '/', $replaceTo, $lastChildContent, 1);
+            // Replace the first occurrence of ├─ with └─ for the last child
+            $lastChildContent = preg_replace(
+                '/^' . preg_quote($indent . "  " . "├─", '/') . '/',
+                $indent . "  " . "└─",
+                $lastChildContent,
+                1
+            );
 
             $content .= $lastChildContent;
         }
@@ -209,11 +227,15 @@ class CallStackTreeService
     {
         $methodCount = count($analyzedMethods);
         $callCount = $this->countCallRelationships($rootCall);
+        $maxCallDepth = $this->calculateMaxCallDepth($rootCall);
+        $leafMethods = $this->countLeafMethods($rootCall);
 
         $statContent = "\n## Statistics\n\n";
         $statContent .= "- Entry point: {$rootCall->getSignature()}\n";
         $statContent .= "- Methods analyzed: {$methodCount}\n";
-        $statContent .= "- Call relationships: {$callCount}\n\n";
+        $statContent .= "- Call relationships: {$callCount}\n";
+        $statContent .= "- Maximum call depth: {$maxCallDepth}\n";
+        $statContent .= "- Leaf methods (endpoints): {$leafMethods}\n\n";
 
         $statContent .= "## Configuration\n\n";
         $statContent .= "- Max depth: {$maxDepth}\n";
@@ -233,5 +255,87 @@ class CallStackTreeService
         }
 
         return $childCount;
+    }
+
+    /**
+     * Calculate the maximum depth of the call tree
+     */
+    private function calculateMaxCallDepth(MethodCall $methodCall, int $currentDepth = 0): int
+    {
+        if (!$methodCall->hasChildCalls()) {
+            return $currentDepth;
+        }
+
+        $maxDepth = $currentDepth;
+        foreach ($methodCall->getChildCalls() as $childCall) {
+            $childDepth = $this->calculateMaxCallDepth($childCall, $currentDepth + 1);
+            $maxDepth = max($maxDepth, $childDepth);
+        }
+
+        return $maxDepth;
+    }
+
+    /**
+     * Count the number of leaf methods (methods that don't call other methods)
+     */
+    private function countLeafMethods(MethodCall $methodCall): int
+    {
+        if (!$methodCall->hasChildCalls()) {
+            return 1;
+        }
+
+        $leafCount = 0;
+        foreach ($methodCall->getChildCalls() as $childCall) {
+            $leafCount += $this->countLeafMethods($childCall);
+        }
+
+        return $leafCount;
+    }
+
+    /**
+     * Generate a unique call graph ID
+     */
+    private function generateCallGraphId(MethodCall $methodCall): string
+    {
+        return md5($methodCall->getSignature() . '-' . $methodCall->getCallContext()->getFormattedFileLocation());
+    }
+
+    /**
+     * Find method calls that appear multiple times in the call stack
+     *
+     * @return array<string, array<string>> Map of method signatures to call paths
+     */
+    public function findRepeatCalls(MethodCall $rootCall): array
+    {
+        $callMap = [];
+        $this->collectCallPaths($rootCall, $callMap, []);
+
+        // Filter to only methods that appear more than once
+        return array_filter($callMap, function($paths) {
+            return count($paths) > 1;
+        });
+    }
+
+    /**
+     * Collect all paths to method calls
+     *
+     * @param array<string, array<string>> $callMap Map to populate with method signatures and paths
+     * @param array<string> $currentPath Current call path
+     */
+    private function collectCallPaths(MethodCall $methodCall, array &$callMap, array $currentPath): void
+    {
+        $signature = $methodCall->getSignature();
+        $currentPath[] = $signature;
+
+        // Record this path
+        if (!isset($callMap[$signature])) {
+            $callMap[$signature] = [];
+        }
+        $callMap[$signature][] = implode(' -> ', $currentPath);
+
+        // Continue with child calls
+        foreach ($methodCall->getChildCalls() as $childCall) {
+            $this->collectCallPaths($childCall, $callMap, $currentPath);
+        }
     }
 }

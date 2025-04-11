@@ -2,6 +2,8 @@ $schema: 'https://raw.githubusercontent.com/context-hub/generator/refs/heads/mai
 
 import:
   - path: src/**/context.yaml
+  - type: url
+    url: https://gist.githubusercontent.com/butschster/1b7e597691cc1a6476b15dc120ecbddb/raw/8c0f9d0145dcd260b814f866ec130ec630c80ee8/prompts.yaml
 
 variables:
   name: Context Generator
@@ -32,6 +34,86 @@ tools:
           - psalm
 
 documents:
+  - description: "Method Call Stack Analysis"
+    outputPath: "method-call-stack.md"
+    sources:
+            -   type: trace
+                description: >-
+                    A comprehensive method call stack analysis for the TreeSourceFetcher::fetch method.
+                    This analysis generates a hierarchical tree visualization of all method calls,
+                    showing the execution flow and dependencies between different components of the system.
+                    The analysis excludes vendor libraries and framework code to focus on the application logic.
+                sourcePaths:
+                    - src
+                options:
+                    startFile: "src/Source/Tree/TreeSourceFetcher.php"
+                    class: "Butschster\\ContextGenerator\\Source\\Tree\\TreeSourceFetcher"
+                    method: "fetch"
+                    # Skip options
+
+                    skipVendorDir: true
+                    skipFrameworks: true
+                    skipSingletonMethods: true
+                    skipConstructors: false
+                    skipInvokeMethods: false
+                    # Directories and classes to skip
+                    skipDirs:
+                        - tests
+                        - vendor/symfony
+                    skipClasses:
+                        - Monolog\\Logger
+                        - Symfony\\Component\\Console
+
+                        # Methods to skip
+                    skipMethods:
+                        - debug
+                        - log
+                        - getLogger
+
+                        # Patterns for singleton methods
+                    singletonMethodPatterns:
+                        - /^getInstance$/
+                        - /^instance$/
+                        - /^get[A-Z][a-zA-Z0-9]*Instance$/
+                        - /^create[A-Z][a-zA-Z0-9]*$/
+
+                        # Analysis depth
+                    maxDepth: 20
+
+                    # File filtering
+                    filePattern: "*.php"
+                    notPath:
+                        - "/vendor/"
+                        - "/tests/"
+                    path:
+                        - "src/Source"
+                        - "src/Lib"
+
+                        # Content filtering
+                    contains: [ ]
+                    notContains: [ ]
+
+                    # Rendering format
+                    renderFormat: "markdown"
+
+                    # Tags for organization
+                    tags:
+                        - "code-analysis"
+                        - "method-calls"
+                        - "trace"
+
+  -   description: 'Project structure overview'
+      outputPath: tree_project-structure.md
+      overwrite: true
+      sources:
+          -   type: tree
+              sourcePaths:
+                  - src/Source/Tree
+              showCharCount: true
+              filePattern: '*.php'
+              showSize: true
+          - type: file
+
   - description: 'Project structure overview'
     outputPath: project-structure.md
     overwrite: true
@@ -56,3 +138,23 @@ documents:
     sources:
       - type: git_diff
         commit: unstaged
+
+  - description: "PHP Method Call Stack Analysis from XHProf"
+    outputPath: "xhprof-call-stack.md"
+    sources:
+              -   type: xhprof_trace
+                  description: >-
+                      A comprehensive method call analysis from XHProf trace data.
+                      This visualization shows performance metrics and call relationships
+                      for functions executed during the request.
+                  sourcePaths:
+                      - src/Source/XHProfTrace/trace.json
+                  options:
+                      title: "PHP Method Call Stack Trace Analysis"
+                      maxDepth: 15  # Maximum depth of call tree to display
+                      showMemory: true  # Show memory usage metrics
+                      showCpuTime: true  # Show CPU time metrics
+                  tags:
+                      - "performance"
+                      - "profiling"
+                      - "method-calls"

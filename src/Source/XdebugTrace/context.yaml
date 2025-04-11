@@ -1,0 +1,7 @@
+documents:
+  - description: Function Call Stack Analysis
+    outputPath: call-stack.md
+    sources:
+      - type: file
+        showTreeView: true
+        sourcePaths: ./

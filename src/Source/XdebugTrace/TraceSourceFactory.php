@@ -6,22 +6,33 @@ namespace Butschster\ContextGenerator\Source\XdebugTrace;
 
 use Butschster\ContextGenerator\Source\Registry\AbstractSourceFactory;
 use Butschster\ContextGenerator\Source\SourceInterface;
+use Butschster\ContextGenerator\Source\XdebugTrace\Domain\Model\TraceSource;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
- * Factory for creating TextSource instances
+ * Factory for creating TraceSource instances
  */
 final readonly class TraceSourceFactory extends AbstractSourceFactory
 {
+    /**
+     * Get the source type identifier
+     */
     #[\Override]
     public function getType(): string
     {
         return 'trace';
     }
 
+    /**
+     * Create a TraceSource from configuration
+     */
     #[\Override]
     public function create(array $config): SourceInterface
     {
-        $this->logger?->debug('Creating Trace source', [
+        $logger = $this->logger ?? new NullLogger();
+
+        $logger->debug('Creating Trace source', [
             'path' => $this->dirs->getRootPath(),
             'config' => $config,
         ]);
@@ -34,7 +45,7 @@ final readonly class TraceSourceFactory extends AbstractSourceFactory
 
             $sourcePaths = $config['sourcePaths'];
             if (!\is_string($sourcePaths) && !\is_array($sourcePaths)) {
-                throw new \InvalidArgumentException('"sourcePaths" must be a string or array in source');
+                throw new \InvalidArgumentException('"sourcePaths" must be a string or array in trace source');
             }
 
             // Normalize and resolve source paths
@@ -43,13 +54,6 @@ final readonly class TraceSourceFactory extends AbstractSourceFactory
                 fn(string $sourcePath): string => (string) $this->dirs->getRootPath()->join($sourcePath),
                 $sourcePaths,
             );
-
-            // Validate source paths exist
-            foreach ($sourcePaths as $path) {
-                if (!file_exists($path)) {
-                    throw new \InvalidArgumentException("Source path does not exist: {$path}");
-                }
-            }
 
             // Get file pattern and notPath
             $filePattern = $config['filePattern'] ?? '*.php';
@@ -73,12 +77,13 @@ final readonly class TraceSourceFactory extends AbstractSourceFactory
                 $startFile = $this->dirs->getRootPath()->join($config['sourceTracePath']);
             }
 
-            // Validate startFile if provided
+            // If startFile is provided, ensure it exists and set it in options
             if ($startFile !== null) {
-                if (!$startFile->exists()) {
-                    throw new \InvalidArgumentException("Start file does not exist: {$startFile}");
+                $startFilePath = (string)$startFile;
+                if (!file_exists($startFilePath)) {
+                    $logger->warning("Start file does not exist: {$startFilePath}. Will attempt to locate during analysis.");
                 }
-                $options['startFile'] = $startFile;
+                $options['startFile'] = $startFilePath;
             }
 
             // Check for class name (required for trace analysis)
@@ -91,7 +96,7 @@ final readonly class TraceSourceFactory extends AbstractSourceFactory
             }
 
             if (empty($className)) {
-                throw new \InvalidArgumentException('Class name is required for trace analysis (specify in "class" property)');
+                $logger->warning('Class name is required for trace analysis (specify in "class" property)');
             }
 
             // Set method name (defaulting to "fetch" if not provided)
@@ -108,11 +113,23 @@ final readonly class TraceSourceFactory extends AbstractSourceFactory
                 $options['outputFile'] = $outputFilePath;
             }
 
-            // Ensure we have output directory created
-            if (isset($options['outputFile'])) {
-                $outputDir = dirname($options['outputFile']);
-                if (!is_dir($outputDir) && !mkdir($outputDir, 0777, true) && !is_dir($outputDir)) {
-                    throw new \InvalidArgumentException("Unable to create output directory: {$outputDir}");
+            // Setup namespace mappings
+            if (isset($config['namespaceMappings']) && is_array($config['namespaceMappings'])) {
+                $options['namespaceMappings'] = [];
+
+                foreach ($config['namespaceMappings'] as $namespace => $path) {
+                    $resolvedPath = (string) $this->dirs->getRootPath()->join($path);
+                    $options['namespaceMappings'][$namespace] = $resolvedPath;
+                }
+            }
+
+            // Setup search directories
+            if (isset($config['searchDirectories']) && is_array($config['searchDirectories'])) {
+                $options['searchDirectories'] = [];
+
+                foreach ($config['searchDirectories'] as $dir) {
+                    $resolvedPath = (string) $this->dirs->getRootPath()->join($dir);
+                    $options['searchDirectories'][] = $resolvedPath;
                 }
             }
 
@@ -144,7 +161,7 @@ final readonly class TraceSourceFactory extends AbstractSourceFactory
             }
 
             // Create and return the TraceSource
-            return new \Butschster\ContextGenerator\Source\XdebugTrace\Domain\Model\TraceSource(
+            return new TraceSource(
                 sourcePaths: $sourcePaths,
                 description: $config['description'] ?? '',
                 content: $config['content'] ?? '',

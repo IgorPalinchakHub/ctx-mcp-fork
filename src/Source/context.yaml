@@ -20,6 +20,14 @@ documents:
         filePattern: '*.php'
         showTreeView: true
 
+  -   description: Source Implementations - File
+      outputPath: sources/treeeee-source.md
+      sources:
+          -   type: file
+              sourcePaths: ./Tree
+              filePattern: '*.php'
+              showTreeView: true
+
   - description: Source Implementations - GitHub
     outputPath: sources/github-source.md
     sources:
@@ -97,3 +105,11 @@ documents:
         sourcePaths: ../Lib/Content
         filePattern: '*.php'
         showTreeView: true
+
+  - description: Document source renderer
+    outputPath: sources/XHProfTrace-source-renderer.md
+    sources:
+          -   type: file
+              sourcePaths: ./XHProfTrace
+              filePattern: '*.php'
+              showTreeView: true

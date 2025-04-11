@@ -5,30 +5,36 @@ declare(strict_types=1);
 namespace Butschster\ContextGenerator\Source\XdebugTrace\Domain\Service;
 
 /**
- * Service to handle rules for skipping methods, classes and directories
+ * Enhanced service to handle rules for skipping methods, classes and directories
  */
 class SkipRulesService
 {
-    /** @var array<string> */
+    /** @var array<string> Patterns for methods to skip */
     private array $skipMethodPatterns = [];
 
-    /** @var array<string> */
+    /** @var array<string> Patterns for classes to skip */
     private array $skipClassPatterns = [];
 
-    /** @var array<string> */
+    /** @var array<string> Patterns for directories to skip */
     private array $skipDirPatterns = [];
 
-    /** @var array<string> */
+    /** @var array<string> Patterns for singleton methods */
     private array $singletonMethodPatterns = ['/^getInstance$/', '/^instance$/', '/^create$/', '/^singleton$/'];
 
-    /** @var bool */
+    /** @var bool Whether to skip singleton methods */
     private bool $skipSingletonMethods = true;
 
-    /** @var bool */
+    /** @var bool Whether to skip constructor methods */
     private bool $skipConstructors = false;
 
-    /** @var bool */
+    /** @var bool Whether to skip __invoke methods */
     private bool $skipInvokeMethods = false;
+
+    /** @var array<string> Full class names to explicitly skip */
+    private array $explicitSkipClasses = [];
+
+    /** @var array<string> Method names to explicitly skip */
+    private array $explicitSkipMethods = [];
 
     /**
      * Constructor that sets up default skip patterns
@@ -52,6 +58,13 @@ class SkipRulesService
             '/^__set$/',
             '/^__call$/',
             '/^__callStatic$/',
+            '/^__sleep$/',
+            '/^__wakeup$/',
+            '/^__clone$/',
+            '/^__unset$/',
+            '/^__set_state$/',
+            '/^__serialize$/',
+            '/^__unserialize$/',
         ];
 
         // Default class patterns to skip - empty by default
@@ -59,6 +72,12 @@ class SkipRulesService
 
         // Default directory patterns to skip
         $this->skipDirPatterns = ['vendor/'];
+
+        // Default explicit classes to skip - empty by default
+        $this->explicitSkipClasses = [];
+
+        // Default explicit methods to skip - empty by default
+        $this->explicitSkipMethods = [];
     }
 
     /**
@@ -97,22 +116,34 @@ class SkipRulesService
             $this->addSkipDirPatterns($patternsToAdd);
         }
 
-        // Configure additional classes to skip
+        // Configure additional classes to skip (by pattern)
         if (isset($options['skipClasses']) && is_array($options['skipClasses'])) {
             $patternsToAdd = [];
             foreach ($options['skipClasses'] as $class) {
-                $pattern = '/^' . preg_quote($class, '/') . '/';
-                $patternsToAdd[] = $pattern;
+                if (strpos($class, '*') !== false) {
+                    // It's a pattern
+                    $pattern = '/^' . str_replace(['\\', '*'], ['\\\\', '.*'], $class) . '/';
+                    $patternsToAdd[] = $pattern;
+                } else {
+                    // It's an exact class name
+                    $this->explicitSkipClasses[] = $class;
+                }
             }
             $this->addSkipClassPatterns($patternsToAdd);
         }
 
-        // Configure additional methods to skip
+        // Configure additional methods to skip (by pattern or exact match)
         if (isset($options['skipMethods']) && is_array($options['skipMethods'])) {
             $patternsToAdd = [];
             foreach ($options['skipMethods'] as $method) {
-                $pattern = '/^' . preg_quote($method, '/') . '$/';
-                $patternsToAdd[] = $pattern;
+                if (strpos($method, '*') !== false) {
+                    // It's a pattern
+                    $pattern = '/^' . str_replace('*', '.*', $method) . '$/';
+                    $patternsToAdd[] = $pattern;
+                } else {
+                    // It's an exact method name
+                    $this->explicitSkipMethods[] = $method;
+                }
             }
             $this->addSkipMethodPatterns($patternsToAdd);
         }
@@ -126,6 +157,11 @@ class SkipRulesService
                 '/^Doctrine\\\\/',
                 '/^Monolog\\\\/',
                 '/^Twig\\\\/',
+                '/^Laminas\\\\/',
+                '/^GuzzleHttp\\\\/',
+                '/^Laravel\\\\/',
+                '/^Illuminate\\\\/',
+                '/^PHPUnit\\\\/',
             ]);
         }
     }
@@ -135,11 +171,18 @@ class SkipRulesService
      */
     public function shouldSkipClass(string $className): bool
     {
+        // First check explicit class list
+        if (in_array($className, $this->explicitSkipClasses, true)) {
+            return true;
+        }
+
+        // Then check patterns
         foreach ($this->skipClassPatterns as $pattern) {
             if (preg_match($pattern, $className)) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -158,11 +201,17 @@ class SkipRulesService
             return true;
         }
 
+        // Check explicit method list
+        if (in_array($methodName, $this->explicitSkipMethods, true)) {
+            return true;
+        }
+
         // Skip singleton methods if configured
         if ($this->skipSingletonMethods && $this->isSingletonMethod($methodName)) {
             return true;
         }
 
+        // Check method patterns
         foreach ($this->skipMethodPatterns as $pattern) {
             if (preg_match($pattern, $methodName)) {
                 return true;
@@ -177,12 +226,23 @@ class SkipRulesService
      */
     public function shouldSkipDirectory(string $path): bool
     {
+        $normalizedPath = str_replace('\\', '/', $path);
+
         foreach ($this->skipDirPatterns as $pattern) {
-            if (strpos($path, $pattern) !== false) {
+            if (stripos($normalizedPath, $pattern) !== false) {
                 return true;
             }
         }
+
         return false;
+    }
+
+    /**
+     * Check if a file path should be skipped based on directory patterns
+     */
+    public function shouldSkipFile(string $path): bool
+    {
+        return $this->shouldSkipDirectory(dirname($path));
     }
 
     /**
@@ -197,8 +257,6 @@ class SkipRulesService
         }
         return false;
     }
-
-    // Getters and setters for patterns
 
     /**
      * Get the singleton method patterns
@@ -366,5 +424,45 @@ class SkipRulesService
     public function setSkipInvokeMethods(bool $skip): void
     {
         $this->skipInvokeMethods = $skip;
+    }
+
+    /**
+     * Get the full list of explicitly skipped class names
+     *
+     * @return array<string>
+     */
+    public function getExplicitSkipClasses(): array
+    {
+        return $this->explicitSkipClasses;
+    }
+
+    /**
+     * Add class names to explicitly skip
+     *
+     * @param array<string> $classNames
+     */
+    public function addExplicitSkipClasses(array $classNames): void
+    {
+        $this->explicitSkipClasses = array_merge($this->explicitSkipClasses, $classNames);
+    }
+
+    /**
+     * Get the full list of explicitly skipped method names
+     *
+     * @return array<string>
+     */
+    public function getExplicitSkipMethods(): array
+    {
+        return $this->explicitSkipMethods;
+    }
+
+    /**
+     * Add method names to explicitly skip
+     *
+     * @param array<string> $methodNames
+     */
+    public function addExplicitSkipMethods(array $methodNames): void
+    {
+        $this->explicitSkipMethods = array_merge($this->explicitSkipMethods, $methodNames);
     }
 }

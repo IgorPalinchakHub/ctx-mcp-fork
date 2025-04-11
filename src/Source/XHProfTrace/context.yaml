@@ -1,0 +1,67 @@
+documents:
+    - description: "PHP Method Call Stack Analysis from XHProf with Filtered and Collapsed Paths"
+      outputPath: "xhprof-filtered-call-stack.md"
+      sources:
+          - type: xhprof_trace
+            description: >-
+                A filtered method call analysis from XHProf trace data,
+                showing only relevant parts of the call stack with collapsed excluded namespaces.
+            sourcePaths:
+                - trace.json
+            options:
+                title: "Filtered PHP Method Call Stack Trace Analysis"
+                maxDepth: 15
+                showMemory: true
+                showCpuTime: true
+                filters:
+                    # Include these namespaces (highest priority)
+                    includeNamespaces:
+                        - "App"
+
+                    # Exclude these namespaces
+                    excludeNamespaces:
+                        - "Doctrine"
+                        - "Symfony"
+                        - "Ramsey"
+
+                    # Include only functions matching these patterns
+                    includeFunctions:
+                        - "find.*"
+                        - "get.*"
+
+                    # Exclude functions matching these patterns
+                    excludeFunctions:
+                        - "log"
+                        - "debug"
+
+                    # Treat function patterns as regex
+                    functionsAsRegex: true
+
+                    # Only show calls taking at least this many microseconds
+                    minExecutionTime: 1000
+
+                    # Match any filter instead of requiring all filters
+                    requireAllFilters: false
+
+                    # Exclude PHP built-in functions
+                    excludePhpInternals: true
+
+                    # Keep paths that lead to included namespaces
+                    preserveImportantPaths: true
+
+                    # After this many consecutive excluded namespace calls, collapse the path
+                    # but continue following it to find included namespaces
+                    maxConsecutiveExcludedCalls: 3
+
+                    methodExtraction:
+                        enabled: true
+                        outputPath: "xhprof_extracted-methods.md"
+                        onlyIncludeVisibleMethods: true
+                        excludePaths:
+                            - "vendor/"
+                            - "tests/"
+                        groupByNamespace: true
+            tags:
+                - "performance"
+                - "profiling"
+                - "method-calls"

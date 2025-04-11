@@ -53,14 +53,19 @@ documents:
                     # but continue following it to find included namespaces
                     maxConsecutiveExcludedCalls: 3
 
-                    methodExtraction:
-                        enabled: true
-                        outputPath: "xhprof_extracted-methods.md"
-                        onlyIncludeVisibleMethods: true
-                        excludePaths:
-                            - "vendor/"
-                            - "tests/"
-                        groupByNamespace: true
+                methodExtraction:
+                    enabled: true
+                    outputPath: "xhprof_extracted-methods.md"
+                    title: "Detailed Methods From Call Tree"
+                    description: "Detailed information about methods called during execution, including source code when available"
+                    onlyIncludeVisibleMethods: true
+                    excludePaths:
+                        - "vendor/"
+                        - "tests/"
+                    groupByNamespace: true
+                    detailedOutput: true
+                    sourceDirectories: [ "src", "app" ]
+
             tags:
                 - "performance"
                 - "profiling"

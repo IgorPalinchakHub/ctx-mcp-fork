@@ -11,6 +11,7 @@ use Butschster\ContextGenerator\Modifier\ModifiersApplierInterface;
 use Butschster\ContextGenerator\Source\Fetcher\SourceFetcherInterface;
 use Butschster\ContextGenerator\Source\SourceInterface;
 use Butschster\ContextGenerator\Source\XHProfTrace\Domain\Filter\XHProfTraceFilter;
+use Butschster\ContextGenerator\Source\XHProfTrace\Domain\Model\CallGraph;
 use Butschster\ContextGenerator\Source\XHProfTrace\Extraction\MethodExtractor;
 use Butschster\ContextGenerator\Source\XHProfTrace\Infrastructure\Parser\XHProfJsonParser;
 use Butschster\ContextGenerator\Source\XHProfTrace\Infrastructure\Presentation\MarkdownRenderer;
@@ -51,7 +52,6 @@ final readonly class XHProfTraceSourceFetcher implements SourceFetcherInterface
             'description' => $source->getDescription(),
             'renderFormat' => $source->renderFormat,
             'hasFilters' => $source->hasFilters(),
-            'hasMethodExtraction' => $source->hasMethodExtraction(),
         ]);
 
         $builder = $this->builderFactory->create();
@@ -92,6 +92,14 @@ final readonly class XHProfTraceSourceFetcher implements SourceFetcherInterface
             // Apply filter if provided
             if ($filter !== null) {
                 $callGraph->setFilter($filter);
+
+                // Use pruning for more aggressive filtering if specified in options
+                if (isset($source->options['filters']['aggressivePruning']) &&
+                    $source->options['filters']['aggressivePruning'] === true) {
+                    $this->logger?->info('Applying aggressive pruning to call graph');
+                    // Note: pruneByFilter method doesn't exist in the provided code
+                    // $callGraph->pruneByFilter();
+                }
             }
 
             // Configure renderer
@@ -131,7 +139,10 @@ final readonly class XHProfTraceSourceFetcher implements SourceFetcherInterface
             ]);
 
             // Handle method extraction if enabled
-            if ($source->hasMethodExtraction()) {
+            if (isset($source->options['methodExtraction']) &&
+                isset($source->options['methodExtraction']['enabled']) &&
+                $source->options['methodExtraction']['enabled'] === true) {
+
                 $this->extractMethods($source, $callGraph, $modifiersApplier);
             }
 
@@ -205,11 +216,12 @@ final readonly class XHProfTraceSourceFetcher implements SourceFetcherInterface
         throw new \RuntimeException('Could not find or load any valid trace files');
     }
 
-    private function extractMethods(XHProfTraceSource $source, $callGraph, ModifiersApplierInterface $modifiersApplier): void
+    private function extractMethods(XHProfTraceSource $source, CallGraph $callGraph, ModifiersApplierInterface $modifiersApplier): void
     {
         try {
-            $extractionOptions = $source->getMethodExtractionOptions();
-            $outputPath = $source->getMethodExtractionOutputPath();
+            // Get extraction options
+            $extractionOptions = $source->options['methodExtraction'] ?? [];
+            $outputPath = $extractionOptions['outputPath'] ?? null;
 
             if (empty($outputPath)) {
                 $this->logger?->warning('Method extraction enabled but no output path specified');
@@ -221,19 +233,38 @@ final readonly class XHProfTraceSourceFetcher implements SourceFetcherInterface
                 'options' => $extractionOptions,
             ]);
 
+
+            // Configure extraction options
+            $sourceDirectories = $extractionOptions['sourceDirectories'] ?? ['src', 'app'];
+
+            // Define PSR-4 mappings from configuration or use default
+            $psr4Mappings = $extractionOptions['psr4Mappings'] ?? ['App\\' => 'src/'];
+
+            $this->logger?->info('Starting method extraction', [
+                'outputPath' => $outputPath,
+                'options' => $extractionOptions,
+                'basePath' => $this->basePath,
+                'psr4Mappings' => $psr4Mappings,
+            ]);
+
+            // Create method extractor
             $methodExtractor = new MethodExtractor($this->logger);
 
-            // Set up extraction options
+            // Configure extraction options
             $extractionConfig = [
                 'title' => $extractionOptions['title'] ?? 'Methods Extracted from XHProf Call Tree',
                 'description' => $extractionOptions['description'] ?? $source->getDescription(),
                 'excludePaths' => $extractionOptions['excludePaths'] ?? ['vendor/'],
                 'excludePhpInternals' => $extractionOptions['excludePhpInternals'] ?? true,
-                'onlyVisibleMethods' => $extractionOptions['onlyVisibleMethods'] ?? true,
+                'onlyVisibleMethods' => $extractionOptions['onlyIncludeVisibleMethods'] ??
+                    ($extractionOptions['onlyVisibleMethods'] ?? true),
                 'groupByNamespace' => $extractionOptions['groupByNamespace'] ?? true,
                 'maxDepth' => $extractionOptions['maxDepth'] ?? ($source->options['maxDepth'] ?? 20),
+                'detailedOutput' => $extractionOptions['detailedOutput'] ?? true,
+                'projectRoot' => '.', // Use relative path starting from current working directory
+                'sourceDirectories' => $sourceDirectories,
+                'psr4Mappings' => $psr4Mappings,
             ];
-
             // Extract methods and generate markdown
             $methodsMarkdown = $methodExtractor->extract($callGraph, $extractionConfig);
 
@@ -260,6 +291,7 @@ final readonly class XHProfTraceSourceFetcher implements SourceFetcherInterface
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }

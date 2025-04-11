@@ -38,6 +38,10 @@ final class MethodExtractor
         $onlyVisibleMethods = $options['onlyVisibleMethods'] ?? true;
         $groupByNamespace = $options['groupByNamespace'] ?? true;
         $maxDepth = $options['maxDepth'] ?? 100;
+        $detailedOutput = $options['detailedOutput'] ?? false;
+        $projectRoot = $options['projectRoot'] ?? '';
+        $sourceDirectories = $options['sourceDirectories'] ?? ['src', 'app'];
+        $psr4Mappings = $options['psr4Mappings'] ?? ['App\\' => 'src/'];
 
         // Create filter
         $filter = new MethodExtractionFilter(
@@ -68,10 +72,22 @@ final class MethodExtractor
         $this->logger->info('Method extraction completed', [
             'classCount' => count($extractedMethods),
             'methodCount' => array_sum(array_map('count', $extractedMethods)),
+            'detailedOutput' => $detailedOutput,
+            'projectRoot' => $projectRoot,
+            'psr4Mappings' => $psr4Mappings
         ]);
 
         // Write to markdown
-        $writer = new MethodListMarkdownWriter();
+        if ($detailedOutput) {
+            $writer = new \Butschster\ContextGenerator\Source\XHProfTrace\Extraction\Writer\DetailedMethodListMarkdownWriter(
+                projectRoot: $projectRoot,
+                sourceDirectories: $sourceDirectories,
+                psr4MappingsConfig: $psr4Mappings,
+                logger: $this->logger
+            );
+        } else {
+            $writer = new \Butschster\ContextGenerator\Source\XHProfTrace\Extraction\Writer\MethodListMarkdownWriter();
+        }
 
         return $writer->write(
             extractedMethods: $extractedMethods,

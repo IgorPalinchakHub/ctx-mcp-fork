@@ -159,4 +159,9 @@ final class XHProfTraceSource extends BaseSource implements FilterableSourceInte
 
         return \array_filter($result);
     }
+
+    public function maxFiles(): int
+    {
+        return 0;
+    }
 }

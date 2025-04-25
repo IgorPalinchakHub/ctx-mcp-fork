@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Butschster\ContextGenerator\McpServer\Tool;
 
 use Butschster\ContextGenerator\Application\Bootloader\ConfigLoaderBootloader;
+use Butschster\ContextGenerator\Application\Bootloader\ConsoleBootloader;
 use Butschster\ContextGenerator\McpServer\Tool\Command\CommandExecutorInterface;
+use Butschster\ContextGenerator\McpServer\Tool\Console\ToolListCommand;
+use Butschster\ContextGenerator\McpServer\Tool\Console\ToolRunCommand;
 use Butschster\ContextGenerator\McpServer\Tool\Types\RunToolHandler;
 use Butschster\ContextGenerator\McpServer\Tool\Types\ToolHandlerInterface;
 use Spiral\Boot\Bootloader\Bootloader;
@@ -42,8 +45,16 @@ final class McpToolBootloader extends Bootloader
         ];
     }
 
-    public function init(ConfigLoaderBootloader $configLoader, ToolParserPlugin $parserPlugin): void
-    {
+    public function init(
+        ConfigLoaderBootloader $configLoader,
+        ToolParserPlugin $parserPlugin,
+        ToolConfigMerger $toolConfigMerger,
+        ConsoleBootloader $console,
+    ): void {
         $configLoader->registerParserPlugin($parserPlugin);
+        $configLoader->registerMerger($toolConfigMerger);
+
+        $console->addCommand(ToolListCommand::class);
+        $console->addCommand(ToolRunCommand::class);
     }
 }

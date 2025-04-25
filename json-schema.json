@@ -99,6 +99,9 @@
               "pathPrefix": {
                 "type": "string",
                 "description": "Path prefix to apply to all source paths in the imported configuration"
+              },
+              "filter": {
+                "$ref": "#/definitions/importFilter"
               }
             },
             "allOf": [
@@ -188,6 +191,19 @@
               }
             }
           }
+        },
+        "gitlab": {
+          "type": "object",
+          "description": "Settings for GitLab integration",
+          "properties": {
+            "servers": {
+              "type": "object",
+              "description": "Pre-defined GitLab server configurations",
+              "additionalProperties": {
+                "$ref": "#/definitions/gitlabServerConfig"
+              }
+            }
+          }
         }
       }
     },
@@ -201,6 +217,57 @@
     }
   },
   "definitions": {
+    "importFilter": {
+      "type": "object",
+      "description": "Filter configuration for selective import of prompts",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "description": "List of prompt IDs to import",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tags": {
+          "type": "object",
+          "description": "Tag-based filtering configuration",
+          "properties": {
+            "include": {
+              "type": "array",
+              "description": "Tags that prompts must have (based on match strategy)",
+              "items": {
+                "type": "string"
+              }
+            },
+            "exclude": {
+              "type": "array",
+              "description": "Tags that prompts must not have",
+              "items": {
+                "type": "string"
+              }
+            },
+            "match": {
+              "type": "string",
+              "enum": [
+                "any",
+                "all"
+              ],
+              "description": "Match strategy: 'any' = OR logic (default), 'all' = AND logic",
+              "default": "any"
+            }
+          }
+        },
+        "match": {
+          "type": "string",
+          "enum": [
+            "any",
+            "all"
+          ],
+          "description": "Overall match strategy between different filter types: 'any' = OR logic (default), 'all' = AND logic",
+          "default": "any"
+        }
+      }
+    },
     "inputSchema": {
       "type": "object",
       "description": "JSON Schema defining arguments that can be provided to tools or other components",
@@ -447,6 +514,13 @@
           "type": "string",
           "description": "Unique identifier for the prompt"
         },
+        "tags": {
+          "type": "array",
+          "description": "List of tags for this prompt",
+          "items": {
+            "type": "string"
+          }
+        },
         "description": {
           "type": "string",
           "description": "Human-readable description of the prompt"
@@ -607,6 +681,7 @@
             "url",
             "text",
             "github",
+            "gitlab",
             "git_diff",
             "tree",
             "mcp",
@@ -676,6 +751,18 @@
           },
           "then": {
             "$ref": "#/definitions/githubSource"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "gitlab"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/gitlabSource"
           }
         },
         {
@@ -978,6 +1065,111 @@
         "githubToken": {
           "type": "string",
           "description": "GitHub API token for private repositories (can use env var pattern ${TOKEN_NAME})"
+        }
+      }
+    },
+    "gitlabSource": {
+      "required": [
+        "repository",
+        "sourcePaths"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "GitLab repository in format group/project",
+          "pattern": "^[\\w.-]+/[\\w.-]+$"
+        },
+        "sourcePaths": {
+          "$ref": "#/definitions/sourcePaths"
+        },
+        "branch": {
+          "type": "string",
+          "description": "Branch or tag to fetch from",
+          "default": "main"
+        },
+        "filePattern": {
+          "$ref": "#/definitions/filePattern",
+          "default": "*.*"
+        },
+        "excludePatterns": {
+          "type": "array",
+          "description": "Patterns to exclude files (alias for notPath)",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "notPath": {
+          "type": "array",
+          "description": "Patterns to exclude files by path",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "path": {
+          "$ref": "#/definitions/patternConstraint"
+        },
+        "contains": {
+          "$ref": "#/definitions/patternConstraint"
+        },
+        "notContains": {
+          "$ref": "#/definitions/patternConstraint"
+        },
+        "showTreeView": {
+          "type": "boolean",
+          "description": "Whether to show directory tree",
+          "default": true
+        },
+        "treeView": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Whether to show the tree view"
+            },
+            {
+              "$ref": "#/definitions/treeViewConfig"
+            }
+          ],
+          "description": "Tree view configuration"
+        },
+        "server": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Reference to a pre-defined server in settings.gitlab.servers"
+            },
+            {
+              "$ref": "#/definitions/gitlabServerConfig"
+            }
+          ],
+          "description": "GitLab server configuration or reference to a pre-defined server"
+        },
+        "modifiers": {
+          "$ref": "#/definitions/modifiers"
+        }
+      }
+    },
+    "gitlabServerConfig": {
+      "type": "object",
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "GitLab server URL"
+        },
+        "token": {
+          "type": "string",
+          "description": "GitLab API token for authentication (can use env var pattern ${TOKEN_NAME})"
+        },
+        "headers": {
+          "type": "object",
+          "description": "Custom HTTP headers to send with requests",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },

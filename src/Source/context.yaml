@@ -39,7 +39,7 @@ documents:
               filePattern: '*.php'
               showTreeView: true
 
-  - description: '[source] Gitlab'
+  -   description: '[source] Gitlab'
     outputPath: sources/gitlab-source.md
     sources:
       - type: file
@@ -64,14 +64,14 @@ documents:
   - description: '[source] Docs'
     outputPath: sources/docs-source.md
     sources:
-        - type: file
-          sourcePaths:
-              - ./Docs
-              - ../Lib/HttpClient/HttpClientInterface.php
-          filePattern: '*.php'
-          showTreeView: true
+        -   type: file
+            sourcePaths:
+                - ./Docs
+                - ../Lib/HttpClient/HttpClientInterface.php
+            filePattern: '*.php'
+            showTreeView: true
 
-  - description: Source Implementations - Text
+  -   description: Source Implementations - Text
     outputPath: sources/text-source.md
     sources:
       - type: file

@@ -192,3 +192,27 @@ https://docs.ctxgithub.com
 ### License
 
 This project is licensed under the MIT License.
+
+
+Adding my private repo based on remote
+
+First, let's make sure your current local repository is properly configured:
+
+bash# Check your current remote
+git remote -v
+
+Add your new GitHub repository as a second remote (commonly named "origin" if it's your primary or "mine" to distinguish it):
+git remote set-url mine git@github.com:IgorPalinchakHub/ctx-mcp-fork.git
+
+
+Now you can pull from the original remote (let's call it "upstream") and push to your own:
+git pull  https://github.com/context-hub/generator.git main
+
+git push git@github.com:IgorPalinchakHub/ctx-mcp-fork.git  local-dev-setup
+
+
+
+If you want to make your repository the default for push commands, you can set it as the default upstream:
+
+bash# Set your repository as the upstream for your branch
+git branch --set-upstream-to=mine/your-custom-branch

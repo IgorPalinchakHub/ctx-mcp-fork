@@ -208,7 +208,6 @@ git remote add origin git@github.com-IgorPalinchakHub:IgorPalinchakHub/ctx-mcp-f
 Now you can pull from the original remote (let's call it "upstream") and push to your own:
 git pull  https://github.com/context-hub/generator.git main
 
-git push git@github.com:IgorPalinchakHub/ctx-mcp-fork.git  local-dev-setup
 
 
 
@@ -223,4 +222,5 @@ git config user.name "IhorPalinchakN"
 git config user.email "palinchakihor.dev@gmail.com"
 
 git remote set-url origin git@github.com-IgorPalinchakHub:IgorPalinchakHub/ctx-mcp-fork.git
+git push git@github.com-IgorPalinchakHub:IgorPalinchakHub/ctx-mcp-fork.git  local-dev-setup
 

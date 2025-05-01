@@ -220,3 +220,7 @@ git branch --set-upstream-to=mine/your-custom-branch
 
 #New key for this REPO
 git config user.name "IhorPalinchakN"
+git config user.email "palinchakihor.dev@gmail.com"
+
+git remote set-url origin git@github.com-IgorPalinchakHub:IgorPalinchakHub/ctx-mcp-fork.git
+

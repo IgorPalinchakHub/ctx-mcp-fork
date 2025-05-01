@@ -202,7 +202,7 @@ bash# Check your current remote
 git remote -v
 
 Add your new GitHub repository as a second remote (commonly named "origin" if it's your primary or "mine" to distinguish it):
-git remote set-url mine git@github.com:IgorPalinchakHub/ctx-mcp-fork.git
+git remote add origin git@github.com-IgorPalinchakHub:IgorPalinchakHub/ctx-mcp-fork.git
 
 
 Now you can pull from the original remote (let's call it "upstream") and push to your own:

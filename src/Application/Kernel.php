@@ -18,12 +18,12 @@ use Butschster\ContextGenerator\Application\Bootloader\ModifierBootloader;
 use Butschster\ContextGenerator\Application\Bootloader\SourceFetcherBootloader;
 use Butschster\ContextGenerator\Application\Bootloader\VariableBootloader;
 use Butschster\ContextGenerator\McpServer\McpServerBootloader;
-use Butschster\ContextGenerator\McpServer\Prompt\McpPromptBootloader;
 use Butschster\ContextGenerator\Modifier\PhpContentFilter\PhpContentFilterBootloader;
 use Butschster\ContextGenerator\Modifier\PhpDocs\PhpDocsModifierBootloader;
 use Butschster\ContextGenerator\Modifier\PhpSignature\PhpSignatureModifierBootloader;
 use Butschster\ContextGenerator\Modifier\Sanitizer\SanitizerModifierBootloader;
 use Butschster\ContextGenerator\Source\Composer\ComposerSourceBootloader;
+use Butschster\ContextGenerator\Source\Docs\DocsSourceBootloader;
 use Butschster\ContextGenerator\Source\File\FileSourceBootloader;
 use Butschster\ContextGenerator\Source\GitDiff\GitDiffSourceBootloader;
 use Butschster\ContextGenerator\Source\Github\GithubSourceBootloader;
@@ -78,6 +78,7 @@ class Kernel extends AbstractKernel
             TraceSourceBootloader::class,
             XHProfTraceSourceBootloader::class,
             McpSourceBootloader::class,
+            DocsSourceBootloader::class,
 
             // Modifiers
             PhpContentFilterBootloader::class,
@@ -87,7 +88,6 @@ class Kernel extends AbstractKernel
 
             // MCP Server
             McpServerBootloader::class,
-            McpPromptBootloader::class,
         ];
     }
 

@@ -30,6 +30,7 @@ documents:
       - type: file
         sourcePaths:
           - ./Tool
+          - ./Action/Tools
 
   - description: "MCP Server routing"
     outputPath: "mcp/routing.md"
@@ -39,3 +40,10 @@ documents:
           - ./Routing
           - ./Server.php
           - ./ServerFactory.php
+
+  - description: "MCP Server Projects"
+    outputPath: "mcp/projects.md"
+    sources:
+      - type: file
+        sourcePaths:
+          - ./Projects

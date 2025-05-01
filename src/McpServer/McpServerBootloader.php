@@ -12,6 +12,7 @@ use Butschster\ContextGenerator\McpServer\Action\Prompts\ListPromptsAction;
 use Butschster\ContextGenerator\McpServer\Action\Prompts\ProjectStructurePromptAction;
 use Butschster\ContextGenerator\McpServer\Action\Resources\GetDocumentContentResourceAction;
 use Butschster\ContextGenerator\McpServer\Action\Resources\JsonSchemaResourceAction;
+use Butschster\ContextGenerator\McpServer\Action\Tools\Docs\DocsSearchAction;
 use Butschster\ContextGenerator\McpServer\Action\Resources\ListResourcesAction;
 use Butschster\ContextGenerator\McpServer\Action\Tools\Context\ContextAction;
 use Butschster\ContextGenerator\McpServer\Action\Tools\Context\ContextGetAction;
@@ -28,7 +29,9 @@ use Butschster\ContextGenerator\McpServer\Action\Tools\ListToolsAction;
 use Butschster\ContextGenerator\McpServer\Action\Tools\Prompts\GetPromptToolAction;
 use Butschster\ContextGenerator\McpServer\Action\Tools\Prompts\ListPromptsToolAction;
 use Butschster\ContextGenerator\McpServer\Console\MCPServerCommand;
+use Butschster\ContextGenerator\McpServer\Projects\McpProjectsBootloader;
 use Butschster\ContextGenerator\McpServer\ProjectService\ProjectServiceInterface;
+use Butschster\ContextGenerator\McpServer\Prompt\McpPromptBootloader;
 use Butschster\ContextGenerator\McpServer\Registry\McpItemsRegistry;
 use Butschster\ContextGenerator\McpServer\Routing\McpResponseStrategy;
 use Butschster\ContextGenerator\McpServer\Routing\RouteRegistrar;
@@ -55,6 +58,9 @@ final class McpServerBootloader extends Bootloader
         return [
             HttpClientBootloader::class,
             McpToolBootloader::class,
+            McpPromptBootloader::class,
+            McpProjectsBootloader::class,
+
         ];
     }
 
@@ -75,6 +81,9 @@ final class McpServerBootloader extends Bootloader
                 'context_operations' => [
                     'enable' => (bool) $env->get('MCP_CONTEXT_OPERATIONS', !$isCommonProject),
                 ],
+                'docs_tools' => [
+                    'enable' => (bool) $env->get('MCP_DOCS_TOOLS_ENABLED', false),
+                ],
                 'prompt_operations' => [
                     'enable' => (bool) $env->get('MCP_PROMPT_OPERATIONS', false),
                 ],
@@ -83,7 +92,7 @@ final class McpServerBootloader extends Bootloader
                     'max_runtime' => (int) $env->get('MCP_TOOL_MAX_RUNTIME', 30),
                 ],
                 'common_prompts' => [
-                    'enable' =>  (bool) $env->get('MCP_COMMON_PROMPTS', true),
+                    'enable' => (bool) $env->get('MCP_COMMON_PROMPTS', true),
                 ],
             ],
         );
@@ -127,7 +136,6 @@ final class McpServerBootloader extends Bootloader
 
     private function actions(McpConfig $config): array
     {
-
         $actions = [
             // Prompts controllers
             GetPromptAction::class,
@@ -167,6 +175,12 @@ final class McpServerBootloader extends Bootloader
             ];
         }
 
+        if ($config->isDocsToolsEnabled()) {
+            $actions = [
+                ...$actions,
+                DocsSearchAction::class,
+            ];
+        }
         if ($config->isFileOperationsEnabled()) {
             $actions = [
                 ...$actions,

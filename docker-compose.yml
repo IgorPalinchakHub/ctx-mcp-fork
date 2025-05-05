@@ -4,15 +4,16 @@ services:
     ctx:
         build:
             context: .
-            dockerfile: Dockerfile
+            dockerfile: DockerfileMy
         container_name: ctx-debug
         volumes:
             - .:/app
             - ./xdebug_traces:/app/xdebug_traces
+            - ./vendor:/app/vendor
         working_dir: /app
         environment:
             XDEBUG_MODE: "debug"  # Enable debug and trace
             #XDEBUG_TRIGGER: "1"  # Always trigger tracing
         tty: true
         stdin_open: true
-        command: php app.php
+        #command: php app.php

@@ -104,11 +104,6 @@ documents:
           - '*Interface.php'
         showTreeView: true
 
-  - description: "Changes in the Project"
-    outputPath: "changes.md"
-    sources:
-      - type: git_diff
-        commit: unstaged
 
   - description: "PHP Method Call Stack Analysis from XHProf"
     outputPath: "xhprof-call-stack.md"

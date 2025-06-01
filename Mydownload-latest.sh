@@ -27,7 +27,7 @@ DOWNLOAD_URL="https://github.com/$REPO_OWNER/$REPO_NAME/releases/download/$LATES
 # Prepare output directory
 OUTPUT_DIR="./.output"
 mkdir -p "$OUTPUT_DIR"
-TARGET_PATH="$OUTPUT_DIR/ctx-e"
+TARGET_PATH="$OUTPUT_DIR/ctx-ee"
 
 # Download the binary
 echo "⬇️  Downloading from: $DOWNLOAD_URL"
